@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Thermometer, Droplets, Sun, Zap, Camera, Bell, Plus, TrendingUp, Activity, Trash2, AlertTriangle } from "lucide-react";
+import { Thermometer, Droplets, Sun, Zap, Camera, Bell, Plus, TrendingUp, Activity, Trash2, AlertTriangle, Leaf, Star, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useARScans } from "@/hooks/useARScans";
+import { usePlantCare } from "@/hooks/usePlantCare";
 import { supabase } from "@/integrations/supabase/client";
 
 interface GardenZone {
@@ -36,11 +37,13 @@ const FunctionalDashboard = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { scans, getRecentScans } = useARScans();
+  const { getRecommendationsForConditions } = usePlantCare();
   const [gardenZones, setGardenZones] = useState<GardenZone[]>([]);
   const [loading, setLoading] = useState(true);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   const [newZoneIds, setNewZoneIds] = useState<Set<string>>(new Set());
+  const [zoneRecommendations, setZoneRecommendations] = useState<{[key: string]: any[]}>({});
 
   // Load garden zones from database and dismissed alerts from localStorage
   useEffect(() => {
@@ -55,6 +58,27 @@ const FunctionalDashboard = () => {
       }
     }
   }, [user]);
+
+  // Update recommendations when zones change
+  useEffect(() => {
+    if (gardenZones.length > 0) {
+      const newRecommendations: {[key: string]: any[]} = {};
+      
+      gardenZones.forEach(zone => {
+        const conditions = {
+          temperature: zone.temperature,
+          humidity: zone.humidity,
+          soilMoisture: zone.soil_moisture,
+          lightHours: zone.light_hours
+        };
+        
+        const recommendations = getRecommendationsForConditions(conditions);
+        newRecommendations[zone.id] = recommendations.slice(0, 3); // Top 3 recommendations
+      });
+      
+      setZoneRecommendations(newRecommendations);
+    }
+  }, [gardenZones, getRecommendationsForConditions]);
 
   const fetchGardenZones = async () => {
     try {
@@ -330,6 +354,34 @@ const FunctionalDashboard = () => {
         variant: "destructive",
         title: "Error",
         description: "Failed to add new zone"
+      });
+    }
+  };
+
+  const addRecommendedPlantToZone = async (zoneId: string, plantId: string) => {
+    try {
+      const zone = gardenZones.find(z => z.id === zoneId);
+      if (!zone) return;
+
+      const { error } = await supabase
+        .from('garden_zones')
+        .update({
+          plants_count: (zone.plants_count || 0) + 1,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', zoneId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Plant Added!",
+        description: "Recommended plant has been added to this zone"
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to add plant to zone"
       });
     }
   };
@@ -623,6 +675,61 @@ const FunctionalDashboard = () => {
                       <Progress value={zone.soil_moisture} className="h-2" />
                     </div>
                   )}
+
+                  {/* Plant Recommendations for this Zone */}
+                  {zoneRecommendations[zone.id] && zoneRecommendations[zone.id].length > 0 && (
+                    <div className="space-y-3 pt-3 border-t border-primary/20 bg-primary/5 -m-4 mt-3 p-4 rounded-b-lg">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Leaf className="h-4 w-4 text-primary" />
+                        <h4 className="text-sm font-medium text-foreground">Recommended Plants</h4>
+                        <Badge variant="secondary" className="text-xs">
+                          Perfect for this zone
+                        </Badge>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        {zoneRecommendations[zone.id].map((rec, index) => (
+                          <div key={index} className="flex items-center justify-between p-2 bg-card/50 rounded-lg border border-primary/10">
+                            <div className="flex items-center gap-2">
+                              <div className="text-lg">🌱</div>
+                              <div>
+                                <p className="text-sm font-medium text-foreground">{rec.name}</p>
+                                <p className="text-xs text-muted-foreground">{rec.reason}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1">
+                                <Star className="h-3 w-3 text-yellow-500" />
+                                <span className="text-xs font-medium text-yellow-600">{rec.compatibility}%</span>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-xs border-primary/30 hover:bg-primary/10"
+                                onClick={() => addRecommendedPlantToZone(zone.id, rec.careData.id)}
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                Add
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-primary hover:bg-primary/10"
+                        onClick={() => {
+                          // Navigate to plants screen with this zone's conditions
+                          window.location.hash = '#library';
+                        }}
+                      >
+                        <ArrowRight className="h-3 w-3 mr-1" />
+                        View All Recommendations
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}
@@ -707,6 +814,83 @@ const FunctionalDashboard = () => {
                 </Badge>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Overall Plant Recommendations */}
+      {gardenZones.length > 0 && (
+        <Card className="bg-gradient-card backdrop-blur-sm shadow-card border-primary/10">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Leaf className="h-4 w-4 text-primary" />
+              Smart Plant Recommendations
+              <Badge variant="secondary" className="text-xs">
+                AI-Powered
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Based on your garden zones' current conditions, here are the best plants to add:
+            </p>
+            
+            <div className="grid gap-3">
+              {Object.entries(zoneRecommendations).slice(0, 2).map(([zoneId, recommendations]) => {
+                const zone = gardenZones.find(z => z.id === zoneId);
+                if (!zone || recommendations.length === 0) return null;
+                
+                return (
+                  <div key={zoneId} className="bg-card/50 rounded-lg p-3 border border-primary/10">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="font-medium text-sm text-foreground">{zone.name}</h4>
+                      <Badge variant="outline" className="text-xs">
+                        {zone.temperature}°C • {zone.humidity}% • {zone.soil_moisture}% soil
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {recommendations.slice(0, 2).map((rec, index) => (
+                        <div key={index} className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm">🌱</div>
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{rec.name}</p>
+                              <p className="text-xs text-muted-foreground">{rec.reason}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
+                              <Star className="h-3 w-3 text-yellow-500" />
+                              <span className="text-xs font-medium text-yellow-600">{rec.compatibility}%</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 px-2 text-xs"
+                              onClick={() => addRecommendedPlantToZone(zoneId, rec.careData.id)}
+                            >
+                              Add
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            <Button
+              variant="outline"
+              className="w-full border-primary/30 hover:bg-primary/10"
+              onClick={() => {
+                window.location.hash = '#library';
+              }}
+            >
+              <ArrowRight className="h-4 w-4 mr-2" />
+              Explore All Plant Recommendations
+            </Button>
           </CardContent>
         </Card>
       )}
