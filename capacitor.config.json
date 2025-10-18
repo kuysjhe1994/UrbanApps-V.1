@@ -1,0 +1,17 @@
+{
+  "appId": "com.urbangrow.app",
+  "appName": "bloom-ar-sense",
+  "webDir": "dist",
+  "server": {
+    "url": 
+    "cleartext": false
+  },
+  "plugins": {
+    "Camera": {
+      "permissions": ["camera", "photos"]
+    },
+    "Geolocation": {
+      "permissions": ["location"]
+    }
+  }
+}
