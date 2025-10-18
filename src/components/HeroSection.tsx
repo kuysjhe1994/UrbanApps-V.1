@@ -43,9 +43,7 @@ const HeroSection = ({ onNavigate }: HeroSectionProps) => {
           <div className="max-w-7xl mx-auto">
             <div className="text-center space-y-6 sm:space-y-8">
               <div className="space-y-3 sm:space-y-4">
-                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight px-4">
-                  UrbanBloom AR
-                </h1>
+                <h1 className="px-4">UrbanBloom AR</h1>
                 <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto px-4">
                   Transform your small urban spaces into thriving gardens with augmented reality 
                   and smart climate monitoring
@@ -53,8 +51,9 @@ const HeroSection = ({ onNavigate }: HeroSectionProps) => {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4">
-                <Button 
-                  size="lg" 
+                <Button
+                  aria-label="Start AR Scanning"
+                  size="lg"
                   className="w-full sm:w-auto bg-gradient-primary shadow-ar-glow hover:shadow-ar-glow transition-smooth"
                   onClick={() => onNavigate('scanner')}
                 >

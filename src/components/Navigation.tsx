@@ -16,7 +16,7 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border/50 p-4 z-50">
+    <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border/50 p-3 z-50" role="navigation" aria-label="Primary">
       <div className="flex items-center justify-around max-w-md mx-auto">
         {tabs.map((tab) => (
           <Button
@@ -29,13 +29,15 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
                 ? "bg-gradient-primary text-primary-foreground shadow-ar-glow scale-110" 
                 : "text-muted-foreground hover:text-foreground hover:bg-primary/10 hover:scale-105"
             }`}
+            aria-current={activeTab === tab.id ? "page" : undefined}
+            aria-label={tab.label}
           >
             <tab.icon className={`h-5 w-5 ${activeTab === tab.id ? 'animate-pulse' : ''}`} />
             <span className="text-xs mt-1 font-medium">{tab.label}</span>
           </Button>
         ))}
       </div>
-    </div>
+    </nav>
   );
 };
 
