@@ -57,23 +57,84 @@ export const usePlantCare = () => {
     soilMoisture: number;
     lightHours: number;
   }, availablePlants: PlantCareData[] = plants) => {
-    return availablePlants.filter(plant => {
+    return availablePlants.map(plant => {
       const tempRange = plant.temperature_range;
       const humidityRange = plant.humidity_range;
       
-      if (!tempRange || !humidityRange) return false;
+      if (!tempRange || !humidityRange) {
+        return {
+          name: plant.plant_name,
+          compatibility: 0,
+          reason: "Insufficient data for recommendation",
+          careData: plant
+        };
+      }
       
-      const tempMatch = conditions.temperature >= tempRange.min && conditions.temperature <= tempRange.max;
-      const humidityMatch = conditions.humidity >= humidityRange.min && conditions.humidity <= humidityRange.max;
-      const lightMatch = conditions.lightHours >= 4; // Basic light requirement
+      // Calculate compatibility score based on conditions
+      let compatibility = 0;
+      let reasons = [];
       
-      return tempMatch && humidityMatch && lightMatch;
-    }).map(plant => ({
-      name: plant.plant_name,
-      compatibility: Math.floor(Math.random() * 20 + 80), // Simulate compatibility score
-      reason: `Good ${plant.care_difficulty} care plant for these conditions`,
-      careData: plant
-    }));
+      // Temperature compatibility (40% weight)
+      const tempDiff = Math.min(
+        Math.abs(conditions.temperature - tempRange.min),
+        Math.abs(conditions.temperature - tempRange.max)
+      );
+      const tempScore = Math.max(0, 100 - (tempDiff * 2));
+      compatibility += tempScore * 0.4;
+      
+      if (tempScore >= 80) reasons.push("Perfect temperature range");
+      else if (tempScore >= 60) reasons.push("Good temperature match");
+      else if (tempScore >= 40) reasons.push("Acceptable temperature");
+      
+      // Humidity compatibility (30% weight)
+      const humidityDiff = Math.min(
+        Math.abs(conditions.humidity - humidityRange.min),
+        Math.abs(conditions.humidity - humidityRange.max)
+      );
+      const humidityScore = Math.max(0, 100 - (humidityDiff * 1.5));
+      compatibility += humidityScore * 0.3;
+      
+      if (humidityScore >= 80) reasons.push("Ideal humidity level");
+      else if (humidityScore >= 60) reasons.push("Good humidity match");
+      
+      // Light compatibility (20% weight)
+      const lightScore = conditions.lightHours >= 6 ? 100 : 
+                        conditions.lightHours >= 4 ? 80 : 
+                        conditions.lightHours >= 2 ? 60 : 40;
+      compatibility += lightScore * 0.2;
+      
+      if (lightScore >= 80) reasons.push("Excellent light conditions");
+      else if (lightScore >= 60) reasons.push("Good light availability");
+      
+      // Soil moisture compatibility (10% weight)
+      const soilScore = conditions.soilMoisture >= 60 && conditions.soilMoisture <= 80 ? 100 :
+                       conditions.soilMoisture >= 40 && conditions.soilMoisture <= 90 ? 80 : 60;
+      compatibility += soilScore * 0.1;
+      
+      if (soilScore >= 80) reasons.push("Optimal soil moisture");
+      
+      // Difficulty bonus
+      if (plant.care_difficulty?.toLowerCase() === 'easy' || plant.care_difficulty?.toLowerCase() === 'very easy') {
+        compatibility += 5;
+        reasons.push("Easy to care for");
+      }
+      
+      // Growth rate bonus
+      if (plant.growth_rate?.toLowerCase() === 'fast') {
+        compatibility += 3;
+        reasons.push("Fast growing");
+      }
+      
+      const finalCompatibility = Math.min(100, Math.max(0, Math.round(compatibility)));
+      
+      return {
+        name: plant.plant_name,
+        compatibility: finalCompatibility,
+        reason: reasons.length > 0 ? reasons.join(", ") : "Suitable for your conditions",
+        careData: plant
+      };
+    }).filter(rec => rec.compatibility >= 60) // Only show plants with 60%+ compatibility
+      .sort((a, b) => b.compatibility - a.compatibility); // Sort by compatibility score
   };
 
   useEffect(() => {
