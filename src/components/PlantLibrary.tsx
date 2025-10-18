@@ -715,6 +715,8 @@ const PlantLibrary = () => {
         </div>
       </div>
 
+      </div>
+
       {/* Plant Details Modal */}
       <PlantDetailsModal
         plant={selectedPlant}
