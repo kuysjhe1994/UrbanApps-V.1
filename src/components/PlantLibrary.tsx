@@ -307,10 +307,13 @@ const PlantLibrary = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-hero p-4 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">Loading plant library...</p>
+      <div className="min-h-screen bg-gradient-hero p-4 space-y-6">
+        <div className="h-10 w-40 bg-muted rounded-md animate-pulse" />
+        <div className="h-10 bg-muted/70 rounded-md animate-pulse" />
+        <div className="grid gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-28 bg-muted/70 rounded-lg animate-pulse" />
+          ))}
         </div>
       </div>
     );
@@ -344,7 +347,7 @@ const PlantLibrary = () => {
         </div>
 
         {/* Search Bar */}
-        <div className="relative">
+        <div className="relative" role="search">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="Search plants by name, type, or care needs..."

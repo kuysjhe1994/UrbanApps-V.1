@@ -427,7 +427,7 @@ const FunctionalARScanner = () => {
       </div>
 
       {/* Camera/Image View */}
-      <div className="relative h-96 mx-4 mt-4 rounded-xl overflow-hidden bg-muted/30">
+      <div className="relative h-96 mx-4 mt-4 rounded-xl overflow-hidden bg-muted/30" role="region" aria-label="Camera view">
         {cameraActive ? (
           <video
             ref={videoRef}
@@ -449,10 +449,10 @@ const FunctionalARScanner = () => {
 
         {/* AR Overlay */}
         {(cameraActive || capturedImage) && (
-          <div className="absolute inset-0">
+          <div className="absolute inset-0" aria-hidden>
             {/* Scanning Grid */}
             {(isScanning || spaceScanning) && (
-              <div className="absolute inset-4 border-2 border-ar-green/50 rounded-lg">
+              <div className="absolute inset-4 border-2 border-ar-green/50 rounded-lg" aria-live="polite">
                 <div className="absolute inset-0 bg-ar-green/10 animate-pulse"></div>
                 <div className="absolute top-4 left-4 w-6 h-6 border-l-2 border-t-2 border-ar-green animate-bounce"></div>
                 <div className="absolute top-4 right-4 w-6 h-6 border-r-2 border-t-2 border-ar-green animate-bounce delay-100"></div>

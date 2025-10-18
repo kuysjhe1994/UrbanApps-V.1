@@ -4,6 +4,7 @@ import FunctionalDashboard from "@/components/FunctionalDashboard";
 import FunctionalARScanner from "@/components/FunctionalARScanner";
 import PlantLibrary from "@/components/PlantLibrary";
 import Navigation from "@/components/Navigation";
+import ThemeToggle from "@/components/ThemeToggle";
 import SplashScreen from "@/components/SplashScreen";
 import AuthScreen from "@/components/AuthScreen";
 import Profile from "@/components/Profile";
@@ -54,10 +55,23 @@ const Index = () => {
   }
 
   return (
-    <div className="relative">
+    <div className="relative" id="main-content">
+      {/* Sticky top app header */}
+      <div className="sticky top-0 z-40 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
+        <div className="mx-auto max-w-7xl px-4 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-6 rounded-md bg-primary/20" aria-hidden="true" />
+            <span className="font-semibold">UrbanBloom AR</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+          </div>
+        </div>
+      </div>
+
       {renderContent()}
       <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
-      <div className="h-20"></div> {/* Spacer for bottom navigation */}
+      <div className="h-20"></div>
     </div>
   );
 };
