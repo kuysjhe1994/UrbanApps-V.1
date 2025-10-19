@@ -71,7 +71,7 @@ const Index = () => {
 
       {renderContent()}
       <Navigation activeTab={activeTab} onTabChange={setActiveTab} />
-      <div className="h-20"></div>
+      <div className="h-16"></div>
     </div>
   );
 };

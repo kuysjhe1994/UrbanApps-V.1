@@ -139,6 +139,12 @@ All colors MUST be HSL.
   }
 }
 
+/* Dark mode overrides for better text contrast per user request */
+@layer components {
+  /* In dark mode, force any explicit white text to black for visibility on bright chips/badges */
+  .dark .text-white { color: hsl(0 0% 0%); }
+}
+
 /* Global base typography and UX refinements */
 html { scroll-behavior: smooth; }
 

@@ -16,7 +16,7 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border/50 p-3 z-50" role="navigation" aria-label="Primary">
+    <nav className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border/50 p-2 z-50" role="navigation" aria-label="Primary">
       <div className="flex items-center justify-around max-w-md mx-auto">
         {tabs.map((tab) => (
           <Button
@@ -24,16 +24,16 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
             variant={activeTab === tab.id ? "default" : "ghost"}
             size="icon"
             onClick={() => onTabChange(tab.id)}
-            className={`flex-col h-auto py-3 px-4 transition-all duration-300 ${
+            className={`flex-col h-auto py-2 px-3 transition-all duration-300 ${
               activeTab === tab.id 
-                ? "bg-gradient-primary text-primary-foreground shadow-ar-glow scale-110" 
-                : "text-muted-foreground hover:text-foreground hover:bg-primary/10 hover:scale-105"
+                ? "bg-gradient-primary text-primary-foreground shadow-ar-glow scale-105" 
+                : "text-muted-foreground hover:text-foreground hover:bg-primary/10 hover:scale-100"
             }`}
             aria-current={activeTab === tab.id ? "page" : undefined}
             aria-label={tab.label}
           >
-            <tab.icon className={`h-5 w-5 ${activeTab === tab.id ? 'animate-pulse' : ''}`} />
-            <span className="text-xs mt-1 font-medium">{tab.label}</span>
+            <tab.icon className={`h-4 w-4 ${activeTab === tab.id ? 'animate-pulse' : ''}`} />
+            <span className="text-xs mt-0.5 font-medium">{tab.label}</span>
           </Button>
         ))}
       </div>
