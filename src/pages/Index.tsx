@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import HeroSection from "@/components/HeroSection";
 import FunctionalDashboard from "@/components/FunctionalDashboard";
+import IoTSensors from "@/components/IoTSensors";
 import FunctionalARScanner from "@/components/FunctionalARScanner";
 import PlantLibrary from "@/components/PlantLibrary";
 import Navigation from "@/components/Navigation";
@@ -25,6 +26,8 @@ const Index = () => {
         return <PlantLibrary />;
       case "monitoring":
         return <FunctionalDashboard />;
+      case "iot":
+        return <IoTSensors />;
       case "profile":
         return <Profile />;
       default:
