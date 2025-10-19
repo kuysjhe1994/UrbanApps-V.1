@@ -25,15 +25,15 @@ All colors MUST be HSL.
 
     /* Soft sage secondary */
     --secondary: 120 15% 90%;
-    --secondary-foreground: 160 20% 25%;
+    --secondary-foreground: 160 20% 20%;
 
     /* Muted earth tones */
     --muted: 120 12% 94%;
-    --muted-foreground: 160 10% 45%;
+    --muted-foreground: 160 10% 35%;
 
     /* Fresh accent green */
     --accent: 156 60% 45%;
-    --accent-foreground: 120 25% 99%;
+    --accent-foreground: 160 15% 15%;
 
     /* Warning red for alerts */
     --destructive: 0 70% 50%;
@@ -104,7 +104,7 @@ All colors MUST be HSL.
 
     /* Dark muted tones */
     --muted: 160 12% 15%;
-    --muted-foreground: 120 8% 60%;
+    --muted-foreground: 120 8% 70%;
 
     /* Bright accent for dark mode */
     --accent: 156 70% 55%;
