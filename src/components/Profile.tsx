@@ -310,22 +310,22 @@ const Profile = () => {
               <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-2">
                 <Leaf className="w-4 h-4 text-primary" />
               </div>
-              <p className="text-2xl font-bold text-foreground">{gardenStats.zones}</p>
-              <p className="text-xs text-muted-foreground">Garden Zones</p>
+              <p className="text-2xl font-bold text-foreground dark:text-black">{gardenStats.zones}</p>
+              <p className="text-xs text-muted-foreground dark:text-black/80">Garden Zones</p>
             </div>
             <div className="text-center p-3 bg-accent/5 rounded-lg">
               <div className="w-8 h-8 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-2">
                 <Trophy className="w-4 h-4 text-accent" />
               </div>
-              <p className="text-2xl font-bold text-foreground">{gardenStats.plants}</p>
-              <p className="text-xs text-muted-foreground">Total Plants</p>
+              <p className="text-2xl font-bold text-foreground dark:text-black">{gardenStats.plants}</p>
+              <p className="text-xs text-muted-foreground dark:text-black/80">Total Plants</p>
             </div>
             <div className="text-center p-3 bg-ar-green/5 rounded-lg">
               <div className="w-8 h-8 bg-ar-green/10 rounded-full flex items-center justify-center mx-auto mb-2">
                 <Camera className="w-4 h-4 text-ar-green" />
               </div>
-              <p className="text-2xl font-bold text-foreground">{scans.length}</p>
-              <p className="text-xs text-muted-foreground">AR Scans</p>
+              <p className="text-2xl font-bold text-foreground dark:text-black">{scans.length}</p>
+              <p className="text-xs text-muted-foreground dark:text-black/80">AR Scans</p>
             </div>
           </div>
 
