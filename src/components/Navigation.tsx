@@ -1,4 +1,4 @@
-import { Home, Camera, BookOpen, BarChart3, User } from "lucide-react";
+import { Home, Camera, BookOpen, BarChart3, Radio, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface NavigationProps {
@@ -12,6 +12,7 @@ const Navigation = ({ activeTab, onTabChange }: NavigationProps) => {
     { id: "scanner", icon: Camera, label: "AR Scan" },
     { id: "library", icon: BookOpen, label: "Plants" },
     { id: "monitoring", icon: BarChart3, label: "Monitor" },
+    { id: "iot", icon: Radio, label: "IoT" },
     { id: "profile", icon: User, label: "Profile" }
   ];
 

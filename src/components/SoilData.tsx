@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function SoilData() {
   const [moisture, setMoisture] = useState<number | null>(null);
@@ -41,19 +44,36 @@ export default function SoilData() {
   };
 
   return (
-    <div className="p-4 max-w-md mx-auto text-center">
-      <h1 className="text-2xl font-bold mb-4">🌱 Live Soil Moisture</h1>
-      <p className="text-lg mb-6">
-        Current: <span className="font-mono">{moisture ?? '--'}</span>
-      </p>
-      <ul className="text-left text-sm max-h-60 overflow-y-auto bg-gray-100 p-2 rounded">
-        {logs.map((row) => (
-          <li key={row.id}>
-            #{row.id} — {row.moisture}% —{' '}
-            {new Date(row.created_at).toLocaleTimeString()}
-          </li>
-        ))}
-      </ul>
+    <div>
+      <div className="flex items-baseline justify-between mb-4">
+        <h2 className="text-xl font-semibold">Live Soil Moisture</h2>
+        <Badge variant="secondary">{moisture !== null ? 'Live' : 'Waiting'}</Badge>
+      </div>
+
+      <Card className="mb-4">
+        <CardContent className="pt-6 text-center">
+          <div className="text-sm text-muted-foreground mb-1">Current moisture</div>
+          <div className="text-4xl font-bold tracking-tight">{moisture ?? '--'}<span className="text-base font-medium ml-1">%</span></div>
+        </CardContent>
+      </Card>
+
+      <div>
+        <div className="text-sm font-medium mb-2">Recent readings</div>
+        <ScrollArea className="h-56">
+          <div className="space-y-2">
+            {logs.map((row) => (
+              <Card key={row.id}>
+                <CardContent className="pt-4 pb-4 flex items-center justify-between">
+                  <div className="font-medium">{row.moisture}%</div>
+                  <div className="text-xs text-muted-foreground">
+                    {new Date(row.created_at).toLocaleTimeString()}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </ScrollArea>
+      </div>
     </div>
   );
 }
