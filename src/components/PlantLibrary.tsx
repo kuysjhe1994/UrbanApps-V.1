@@ -448,7 +448,7 @@ const PlantLibrary = () => {
               </Badge>
             </h3>
             <div className="grid gap-3">
-              {filteredRecommendations.slice(0, 3).map((rec) => {
+              {filteredRecommendations.slice(0, 5).map((rec) => {
                 const plant = rec.careData;
                 return (
                   <Card key={plant.id} className={`bg-gradient-to-r from-green-50 to-blue-50 backdrop-blur-sm shadow-card border-2 ${getCompatibilityBgColor(rec.compatibility)} hover:shadow-ar-glow transition-smooth group`}>

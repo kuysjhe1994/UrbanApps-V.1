@@ -73,7 +73,7 @@ const FunctionalDashboard = () => {
         };
         
         const recommendations = getRecommendationsForConditions(conditions);
-        newRecommendations[zone.id] = recommendations.slice(0, 3); // Top 3 recommendations
+        newRecommendations[zone.id] = recommendations.slice(0, 5); // Top 5 recommendations
       });
       
       setZoneRecommendations(newRecommendations);
@@ -856,7 +856,7 @@ const FunctionalDashboard = () => {
                     </div>
                     
                     <div className="space-y-2">
-                      {recommendations.slice(0, 2).map((rec, index) => (
+                      {recommendations.slice(0, 5).map((rec, index) => (
                         <div key={index} className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <div className="text-sm">🌱</div>

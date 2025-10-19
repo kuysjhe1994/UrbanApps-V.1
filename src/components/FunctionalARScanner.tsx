@@ -312,7 +312,7 @@ const FunctionalARScanner = () => {
       // If no recommendations from conditions, generate smart recommendations for the detected plant
       if (recommendations.length === 0) {
         const companionPlants = allowedPlants.filter(p => p !== detected.toLowerCase());
-        const smartRecommendations = companionPlants.slice(0, 3).map(plantName => ({
+        const smartRecommendations = companionPlants.slice(0, 5).map(plantName => ({
           name: plantName.charAt(0).toUpperCase() + plantName.slice(1),
           compatibility: 85 + Math.floor(Math.random() * 10), // 85-95%
           reason: `Great companion plant for ${detected}`,
