@@ -170,6 +170,27 @@ export type Database = {
         }
         Relationships: []
       }
+      dht_data: {
+        Row: {
+          id: number
+          temperature: number
+          humidity: number
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          temperature: number
+          humidity: number
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          temperature?: number
+          humidity?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
