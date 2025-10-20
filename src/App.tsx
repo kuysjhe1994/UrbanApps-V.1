@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import SoilData from "./components/SoilData";
+// Removed global SoilData import to restrict visibility to IoT screen only
 
 const queryClient = new QueryClient();
 
@@ -33,10 +33,7 @@ const App = () => {
             </Routes>
           </BrowserRouter>
 
-          {/* Your soil data dashboard */}
-          <main className="min-h-screen bg-white flex items-center justify-center">
-            <SoilData />
-          </main>
+          {/* Soil data is shown only within the IoT screen */}
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>
