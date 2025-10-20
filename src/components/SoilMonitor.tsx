@@ -1,13 +1,8 @@
 import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-
-const supabase = createClient(
-  "https://ktzlpcrepjgdzqvxzbmz.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0emxwY3JlcGpnZHpxdnh6Ym16Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY1MTUyMjcsImV4cCI6MjA3MjA5MTIyN30.GNrh6CxJnX08Sq4tbjy6W1IKn6DwFvo3hTBeZQv5wRA"
-);
 
 interface SoilData {
   id: number;
