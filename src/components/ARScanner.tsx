@@ -7,8 +7,7 @@ const ARScanner = () => {
   const sensorData = [
     { icon: Thermometer, label: "Temperature", value: "72°F", status: "optimal" },
     { icon: Droplets, label: "Humidity", value: "45%", status: "good" },
-    { icon: Sun, label: "Light", value: "6h direct", status: "optimal" },
-    { icon: Zap, label: "Soil Moisture", value: "60%", status: "good" }
+    { icon: Sun, label: "Light", value: "6h direct", status: "optimal" }
   ];
 
   return (

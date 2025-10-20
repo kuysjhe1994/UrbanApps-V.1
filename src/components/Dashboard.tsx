@@ -1,8 +1,7 @@
-import { Thermometer, Droplets, Sun, Zap, Camera, Bell, Plus } from "lucide-react";
+import { Thermometer, Droplets, Sun, Camera, Bell, Plus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 
 const Dashboard = () => {
   const gardenZones = [
@@ -131,7 +130,7 @@ const Dashboard = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div className="text-center">
                     <Thermometer className="h-4 w-4 text-primary mx-auto mb-1" />
                     <p className="text-xs text-muted-foreground">Temp</p>
@@ -143,26 +142,11 @@ const Dashboard = () => {
                     <p className="text-sm font-medium">{zone.humidity}%</p>
                   </div>
                   <div className="text-center">
-                    <Zap className="h-4 w-4 text-ar-blue mx-auto mb-1" />
-                    <p className="text-xs text-muted-foreground">Soil</p>
-                    <p className="text-sm font-medium">{zone.soilMoisture}%</p>
-                  </div>
-                  <div className="text-center">
                     <Sun className="h-4 w-4 text-yellow-500 mx-auto mb-1" />
                     <p className="text-xs text-muted-foreground">Light</p>
                     <p className="text-sm font-medium">{zone.lightHours}h</p>
                   </div>
                 </div>
-
-                {zone.status === "warning" && (
-                  <div className="mt-3 pt-3 border-t border-border/50">
-                    <div className="flex items-center gap-2">
-                      <Droplets className="h-4 w-4 text-destructive" />
-                      <p className="text-sm text-destructive">Low soil moisture - Water needed</p>
-                    </div>
-                    <Progress value={zone.soilMoisture} className="mt-2 h-2" />
-                  </div>
-                )}
               </CardContent>
             </Card>
           ))}

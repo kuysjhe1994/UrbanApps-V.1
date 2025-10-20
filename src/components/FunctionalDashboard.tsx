@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
-import { Thermometer, Droplets, Sun, Zap, Camera, Bell, Plus, TrendingUp, Activity, Trash2, AlertTriangle, Leaf, Star, ArrowRight } from "lucide-react";
+import { Thermometer, Droplets, Sun, Camera, Bell, Plus, TrendingUp, Activity, Trash2, AlertTriangle, Leaf, Star, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useARScans } from "@/hooks/useARScans";
@@ -190,7 +189,7 @@ const FunctionalDashboard = () => {
     };
   };
 
-  // Real sensor data integration - DHT11 and Soil Moisture sensors
+  // Real sensor data integration - DHT11 and light sensors (soil moisture UI removed)
   const readSensorData = async (zoneId: string) => {
     try {
       // In a real implementation, this would connect to actual DHT11 and soil moisture sensors
@@ -471,7 +470,6 @@ const FunctionalDashboard = () => {
   // Global averages - show -- if no zones exist
   const avgTemp = gardenZones.length > 0 ? gardenZones.reduce((acc, zone) => acc + zone.temperature, 0) / gardenZones.length : null;
   const avgHumidity = gardenZones.length > 0 ? gardenZones.reduce((acc, zone) => acc + zone.humidity, 0) / gardenZones.length : null;
-  const avgSoilMoisture = gardenZones.length > 0 ? gardenZones.reduce((acc, zone) => acc + zone.soil_moisture, 0) / gardenZones.length : null;
 
   if (loading) {
     return (
@@ -514,7 +512,7 @@ const FunctionalDashboard = () => {
       </div>
 
       {/* Live Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <Card className="bg-gradient-card shadow-card border-primary/10">
           <CardContent className="p-3">
             <div className="flex items-center gap-2">
@@ -547,21 +545,6 @@ const FunctionalDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-card shadow-card border-ar-blue/10">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-ar-blue/10 rounded-lg">
-                <Zap className="h-4 w-4 text-ar-blue" />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Avg Soil</p>
-                <p className="text-lg font-bold text-foreground">
-                  {avgSoilMoisture !== null ? `${avgSoilMoisture.toFixed(0)}%` : '--'}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Garden Zones */}
@@ -621,7 +604,7 @@ const FunctionalDashboard = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-3 mb-3">
+                  <div className="grid grid-cols-3 gap-3 mb-3">
                     <div className="text-center">
                       <Thermometer className="h-4 w-4 text-primary mx-auto mb-1" />
                       <p className="text-xs text-muted-foreground">Temp</p>
@@ -631,11 +614,6 @@ const FunctionalDashboard = () => {
                       <Droplets className="h-4 w-4 text-accent mx-auto mb-1" />
                       <p className="text-xs text-muted-foreground">Humidity</p>
                       <p className="text-sm font-medium">{zone.humidity.toFixed(0)}%</p>
-                    </div>
-                    <div className="text-center">
-                      <Zap className="h-4 w-4 text-ar-blue mx-auto mb-1" />
-                      <p className="text-xs text-muted-foreground">Soil</p>
-                      <p className="text-sm font-medium">{zone.soil_moisture.toFixed(0)}%</p>
                     </div>
                     <div className="text-center">
                       <Sun className="h-4 w-4 text-yellow-500 mx-auto mb-1" />
@@ -659,7 +637,6 @@ const FunctionalDashboard = () => {
                           Water Now
                         </Button>
                       </div>
-                      <Progress value={zone.soil_moisture} className="h-2" />
                     </div>
                   )}
 
@@ -678,7 +655,6 @@ const FunctionalDashboard = () => {
                           Water Now
                         </Button>
                       </div>
-                      <Progress value={zone.soil_moisture} className="h-2" />
                     </div>
                   )}
 
@@ -850,9 +826,9 @@ const FunctionalDashboard = () => {
                   <div key={zoneId} className="bg-card/50 rounded-lg p-3 border border-primary/10">
                     <div className="flex items-center gap-2 mb-2">
                       <h4 className="font-medium text-sm text-foreground">{zone.name}</h4>
-                      <Badge variant="outline" className="text-xs">
-                        {zone.temperature}°C • {zone.humidity}% • {zone.soil_moisture}% soil
-                      </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {zone.temperature}°C • {zone.humidity}%
+                        </Badge>
                     </div>
                     
                     <div className="space-y-2">

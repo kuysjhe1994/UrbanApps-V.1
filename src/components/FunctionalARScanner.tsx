@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Camera as CapCamera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { Capacitor } from "@capacitor/core";
-import { Camera, Zap, Thermometer, Droplets, Sun, AlertCircle, Save, History, MapPin, Maximize, Layers, X } from "lucide-react";
+import { Camera, Thermometer, Droplets, Sun, AlertCircle, Save, History, MapPin, Maximize, Layers, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -612,16 +612,6 @@ const FunctionalARScanner = () => {
                   <p className="text-xs text-muted-foreground">Humidity</p>
                   <p className={`font-medium ${getStatusColor(currentSensorData.humidity, 'humidity')}`}>
                     {currentSensorData.humidity.toFixed(0)}%
-                  </p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-ar-blue" />
-                <div className="flex-1">
-                  <p className="text-xs text-muted-foreground">Soil Moisture</p>
-                  <p className={`font-medium ${getStatusColor(currentSensorData.soilMoisture, 'soilMoisture')}`}>
-                    {currentSensorData.soilMoisture.toFixed(0)}%
                   </p>
                 </div>
               </div>
