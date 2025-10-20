@@ -4,6 +4,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import SoilData from "@/components/SoilData";
 import SoilMonitor from "@/components/SoilMonitor";
+import DHTDashboard from "@/components/DHTDashboard";
 import { useClimateData } from "@/hooks/useClimateData";
 import { Thermometer, Droplets, Sun } from "lucide-react";
 
@@ -18,9 +19,10 @@ export default function IoTSensors() {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="w-full grid grid-cols-2 sm:w-auto sm:inline-flex">
+        <TabsList className="w-full grid grid-cols-3 sm:w-auto sm:inline-flex">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="soil">Soil</TabsTrigger>
+          <TabsTrigger value="dht">DHT</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-6">
@@ -107,6 +109,10 @@ export default function IoTSensors() {
               <SoilData />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="dht" className="mt-6">
+          <DHTDashboard />
         </TabsContent>
       </Tabs>
     </div>
