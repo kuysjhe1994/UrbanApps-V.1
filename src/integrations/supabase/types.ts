@@ -152,6 +152,24 @@ export type Database = {
         }
         Relationships: []
       }
+      soil_data: {
+        Row: {
+          id: number
+          moisture: number
+          created_at: string
+        }
+        Insert: {
+          id?: number
+          moisture: number
+          created_at?: string
+        }
+        Update: {
+          id?: number
+          moisture?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null

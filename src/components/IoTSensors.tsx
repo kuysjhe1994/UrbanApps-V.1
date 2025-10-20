@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import SoilData from "@/components/SoilData";
+import SoilMonitor from "@/components/SoilMonitor";
 import { useClimateData } from "@/hooks/useClimateData";
 import { Thermometer, Droplets, Sun } from "lucide-react";
 
@@ -92,9 +93,15 @@ export default function IoTSensors() {
         </TabsContent>
 
         <TabsContent value="soil" className="mt-6">
+          {/* Trend and current view */}
+          <SoilMonitor />
+
+          <Separator className="my-6" />
+
+          {/* Recent readings list */}
           <Card>
             <CardHeader className="flex items-center justify-between">
-              <CardTitle className="w-full">Soil Moisture</CardTitle>
+              <CardTitle className="w-full">Recent Soil Readings</CardTitle>
             </CardHeader>
             <CardContent>
               <SoilData />
