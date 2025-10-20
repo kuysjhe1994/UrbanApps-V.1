@@ -19,7 +19,7 @@ const HeroSection = ({ onNavigate }: HeroSectionProps) => {
     {
       icon: Scan,
       title: "Real-time Monitoring",
-      description: "Live sensor data for temperature, humidity, soil moisture, and light exposure"
+      description: "Live sensor data for temperature, humidity, and light exposure"
     },
     {
       icon: Smartphone,
