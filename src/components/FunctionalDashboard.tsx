@@ -328,8 +328,16 @@ const FunctionalDashboard = () => {
 
   const addNewZone = async () => {
     try {
+      if (!user?.id) {
+        toast({
+          variant: "destructive",
+          title: "Not signed in",
+          description: "Please sign in to add a zone",
+        });
+        return;
+      }
       const newZone = {
-        user_id: user?.id,
+        user_id: user.id,
         name: `New Zone`,
         plants_count: 0,
         temperature: 22,
@@ -337,9 +345,6 @@ const FunctionalDashboard = () => {
         soil_moisture: 65,
         light_hours: 6,
         status: "good" as const,
-        watering_schedule: 'Every 3 days',
-        next_watering: new Date().toISOString(),
-        harvest_date: null
       };
 
       const { data, error } = await supabase
@@ -354,6 +359,9 @@ const FunctionalDashboard = () => {
         title: "New Zone Added",
         description: "Set schedule and harvest date to start monitoring!"
       });
+
+      // Ensure UI updates immediately even if realtime has latency
+      await fetchGardenZones();
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -692,7 +700,7 @@ const FunctionalDashboard = () => {
                               <div className="text-lg">🌱</div>
                               <div>
                                 <p className="text-sm font-medium text-foreground">{rec.name}</p>
-                                <p className="text-xs text-muted-foreground">{rec.reason}</p>
+                                <p className="text-xs text-muted-foreground dark:text-white/80">{rec.reason}</p>
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -854,7 +862,7 @@ const FunctionalDashboard = () => {
                             <div className="text-sm">🌱</div>
                             <div>
                               <p className="text-sm font-medium text-foreground">{rec.name}</p>
-                              <p className="text-xs text-muted-foreground">{rec.reason}</p>
+                              <p className="text-xs text-muted-foreground dark:text-white/80">{rec.reason}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -991,7 +999,23 @@ const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
       if (error) throw error;
       toast({ title: 'Saved', description: 'Schedule updated for this zone' });
       setEditing(false);
-    } catch (e) {
+    } catch (e: any) {
+      // Fallback if some columns are unavailable on the database yet
+      const message = (e?.message || '').toLowerCase();
+      if (message.includes('column') && (message.includes('next_watering') || message.includes('harvest_date'))) {
+        const { error: fallbackError } = await supabase
+          .from('garden_zones')
+          .update({
+            watering_schedule: schedule || null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', zone.id);
+        if (!fallbackError) {
+          toast({ title: 'Saved', description: 'Watering schedule saved' });
+          setEditing(false);
+          return;
+        }
+      }
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to save schedule' });
     }
   };
