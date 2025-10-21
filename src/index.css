@@ -104,7 +104,7 @@ All colors MUST be HSL.
 
     /* Dark muted tones */
     --muted: 160 12% 15%;
-    --muted-foreground: 120 8% 70%;
+    --muted-foreground: 120 8% 78%;
 
     /* Bright accent for dark mode */
     --accent: 156 70% 55%;
@@ -118,6 +118,11 @@ All colors MUST be HSL.
     --border: 160 15% 20%;
     --input: 160 15% 18%;
     --ring: 142 70% 50%;
+    /* Ensure gradients remain dark in dark mode for readability */
+    --gradient-hero: linear-gradient(180deg, hsl(var(--background)), hsl(160 20% 14%));
+    --gradient-card: linear-gradient(145deg, hsl(var(--card)), hsl(160 20% 14%));
+    /* Help UA components (scrollbars, form controls) choose dark defaults */
+    color-scheme: dark;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
