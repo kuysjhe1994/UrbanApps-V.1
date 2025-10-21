@@ -14,6 +14,9 @@ export interface GardenZone {
   light_hours: number;
   status: string;
   last_watered: string;
+  watering_schedule?: string | null;
+  next_watering?: string | null;
+  harvest_date?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -65,7 +68,10 @@ export const useGardenZones = () => {
           humidity: zoneData.humidity || 50,
           soil_moisture: zoneData.soil_moisture || 65,
           light_hours: zoneData.light_hours || 6,
-          status: zoneData.status || 'good'
+          status: zoneData.status || 'good',
+          watering_schedule: zoneData.watering_schedule || null,
+          next_watering: zoneData.next_watering || null,
+          harvest_date: zoneData.harvest_date || null
         })
         .select()
         .single();

@@ -67,6 +67,9 @@ export type Database = {
           temperature: number | null
           updated_at: string
           user_id: string
+          watering_schedule: string | null
+          next_watering: string | null
+          harvest_date: string | null
         }
         Insert: {
           created_at?: string
@@ -81,6 +84,9 @@ export type Database = {
           temperature?: number | null
           updated_at?: string
           user_id: string
+          watering_schedule?: string | null
+          next_watering?: string | null
+          harvest_date?: string | null
         }
         Update: {
           created_at?: string
@@ -95,6 +101,9 @@ export type Database = {
           temperature?: number | null
           updated_at?: string
           user_id?: string
+          watering_schedule?: string | null
+          next_watering?: string | null
+          harvest_date?: string | null
         }
         Relationships: []
       }

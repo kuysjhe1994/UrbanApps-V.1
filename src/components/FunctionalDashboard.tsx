@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Thermometer, Droplets, Sun, Camera, Bell, Plus, TrendingUp, Activity, Trash2, AlertTriangle, Leaf, Star, ArrowRight } from "lucide-react";
+import { Thermometer, Droplets, Sun, Camera, Bell, Plus, TrendingUp, Activity, Trash2, AlertTriangle, Leaf, Star, ArrowRight, Edit3, CalendarDays } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,9 @@ interface GardenZone {
   light_hours: number;
   status: 'good' | 'needs_water' | 'critical';
   last_watered: string;
+  watering_schedule?: string | null;
+  next_watering?: string | null;
+  harvest_date?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -327,13 +330,16 @@ const FunctionalDashboard = () => {
     try {
       const newZone = {
         user_id: user?.id,
-        name: `Zone ${gardenZones.length + 1}`,
+        name: `New Zone`,
         plants_count: 0,
         temperature: 22,
         humidity: 50,
         soil_moisture: 65,
         light_hours: 6,
-        status: "good" as const
+        status: "good" as const,
+        watering_schedule: 'Every 3 days',
+        next_watering: new Date().toISOString(),
+        harvest_date: null
       };
 
       const { data, error } = await supabase
@@ -346,7 +352,7 @@ const FunctionalDashboard = () => {
 
       toast({
         title: "New Zone Added",
-        description: "Connect your sensors to start monitoring!"
+        description: "Set schedule and harvest date to start monitoring!"
       });
     } catch (error: any) {
       toast({
@@ -578,10 +584,17 @@ const FunctionalDashboard = () => {
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
-                      <h3 className="font-medium text-card-foreground">{zone.name}</h3>
+                      <EditableZoneName zone={zone} onRename={async (newName) => {
+                        await supabase.from('garden_zones').update({ name: newName }).eq('id', zone.id);
+                      }} />
                       <p className="text-sm text-muted-foreground">
                         {zone.plants_count} plants • Last watered {getTimeAgo(new Date(zone.last_watered))}
                       </p>
+                      <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                        <span>Schedule: {zone.watering_schedule || '—'}</span>
+                        {zone.next_watering && <span>• Next: {new Date(zone.next_watering).toLocaleDateString()}</span>}
+                        {zone.harvest_date && <span>• Harvest: {new Date(zone.harvest_date).toLocaleDateString()}</span>}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className={`w-2 h-2 rounded-full animate-pulse ${getStatusColor(zone.status)}`}></div>
@@ -621,6 +634,9 @@ const FunctionalDashboard = () => {
                       <p className="text-sm font-medium">{zone.light_hours.toFixed(1)}h</p>
                     </div>
                   </div>
+
+                  {/* Schedule and Harvest Editor */}
+                  <ZoneScheduleEditor zone={zone} />
 
                   {zone.status === 'critical' && (
                     <div className="space-y-3 pt-3 border-t border-destructive/20 bg-destructive/5 -m-4 mt-3 p-4 rounded-b-lg">
@@ -892,4 +908,158 @@ const FunctionalDashboard = () => {
   );
 };
 
+interface EditableZoneNameProps {
+  zone: GardenZone;
+  onRename: (newName: string) => Promise<void>;
+}
+
+const EditableZoneName = ({ zone, onRename }: EditableZoneNameProps) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [value, setValue] = useState(zone.name);
+
+  useEffect(() => {
+    setValue(zone.name);
+  }, [zone.name]);
+
+  const save = async () => {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === zone.name) {
+      setIsEditing(false);
+      return;
+    }
+    await onRename(trimmed);
+    setIsEditing(false);
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      {isEditing ? (
+        <input
+          className="text-sm font-medium bg-transparent border-b border-border focus:outline-none focus:border-primary text-card-foreground"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') save();
+            if (e.key === 'Escape') setIsEditing(false);
+          }}
+          autoFocus
+        />
+      ) : (
+        <h3
+          className="font-medium text-card-foreground cursor-text hover:underline decoration-dotted"
+          onClick={() => setIsEditing(true)}
+          title="Click to rename zone"
+        >
+          {zone.name}
+        </h3>
+      )}
+    </div>
+  );
+};
+
 export default FunctionalDashboard;
+
+interface ZoneScheduleEditorProps {
+  zone: GardenZone;
+}
+
+const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [schedule, setSchedule] = useState(zone.watering_schedule || '');
+  const [nextWatering, setNextWatering] = useState<string>(zone.next_watering || '');
+  const [harvestDate, setHarvestDate] = useState<string>(zone.harvest_date || '');
+
+  useEffect(() => {
+    setSchedule(zone.watering_schedule || '');
+    setNextWatering(zone.next_watering || '');
+    setHarvestDate(zone.harvest_date || '');
+  }, [zone.watering_schedule, zone.next_watering, zone.harvest_date]);
+
+  const save = async () => {
+    try {
+      const { error } = await supabase
+        .from('garden_zones')
+        .update({
+          watering_schedule: schedule || null,
+          next_watering: nextWatering || null,
+          harvest_date: harvestDate || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', zone.id);
+      if (error) throw error;
+      toast({ title: 'Saved', description: 'Schedule updated for this zone' });
+      setEditing(false);
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to save schedule' });
+    }
+  };
+
+  return (
+    <div className="mt-2 p-3 border border-border/50 rounded-lg bg-muted/20">
+      {!editing ? (
+        <div className="flex items-center justify-between">
+          <div className="text-xs text-muted-foreground flex flex-wrap gap-2">
+            <span>
+              Schedule: <span className="text-foreground">{zone.watering_schedule || '—'}</span>
+            </span>
+            <span>
+              Next: <span className="text-foreground">{zone.next_watering ? new Date(zone.next_watering).toLocaleDateString() : '—'}</span>
+            </span>
+            <span>
+              Harvest: <span className="text-foreground">{zone.harvest_date ? new Date(zone.harvest_date).toLocaleDateString() : '—'}</span>
+            </span>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+            <Edit3 className="h-4 w-4 mr-1" /> Edit
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">Watering Schedule</label>
+            <input
+              className="w-full text-sm px-2 py-1 rounded border bg-background"
+              placeholder="e.g., Every 3 days"
+              value={schedule}
+              onChange={(e) => setSchedule(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">Next Watering</label>
+            <input
+              type="date"
+              className="w-full text-sm px-2 py-1 rounded border bg-background"
+              value={nextWatering ? new Date(nextWatering).toISOString().substring(0, 10) : ''}
+              onChange={(e) => {
+                const d = e.target.value ? new Date(e.target.value) : null;
+                setNextWatering(d ? new Date(d.getTime() + d.getTimezoneOffset() * 60000).toISOString() : '');
+              }}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">Harvest Date</label>
+            <input
+              type="date"
+              className="w-full text-sm px-2 py-1 rounded border bg-background"
+              value={harvestDate ? new Date(harvestDate).toISOString().substring(0, 10) : ''}
+              onChange={(e) => {
+                const d = e.target.value ? new Date(e.target.value) : null;
+                setHarvestDate(d ? new Date(d.getTime() + d.getTimezoneOffset() * 60000).toISOString() : '');
+              }}
+            />
+          </div>
+          <div className="flex gap-2 sm:col-span-3">
+            <Button size="sm" onClick={save} className="ml-auto">
+              Save
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
