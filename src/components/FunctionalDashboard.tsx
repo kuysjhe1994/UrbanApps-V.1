@@ -593,7 +593,16 @@ const FunctionalDashboard = () => {
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <EditableZoneName zone={zone} onRename={async (newName) => {
-                        await supabase.from('garden_zones').update({ name: newName }).eq('id', zone.id);
+                        const { error } = await supabase
+                          .from('garden_zones')
+                          .update({ name: newName, updated_at: new Date().toISOString() })
+                          .eq('id', zone.id);
+                        if (error) {
+                          toast({ variant: 'destructive', title: 'Error', description: 'Failed to rename zone' });
+                          throw error;
+                        }
+                        setGardenZones(prev => prev.map(z => z.id === zone.id ? { ...z, name: newName } : z));
+                        toast({ title: 'Renamed', description: 'Zone name updated' });
                       }} />
                       <p className="text-sm text-muted-foreground">
                         {zone.plants_count} plants • Last watered {getTimeAgo(new Date(zone.last_watered))}
@@ -987,6 +996,7 @@ const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
 
   const save = async () => {
     try {
+      // Attempt full update (all fields)
       const { error } = await supabase
         .from('garden_zones')
         .update({
@@ -996,13 +1006,9 @@ const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
           updated_at: new Date().toISOString()
         })
         .eq('id', zone.id);
-      if (error) throw error;
-      toast({ title: 'Saved', description: 'Schedule updated for this zone' });
-      setEditing(false);
-    } catch (e: any) {
-      // Fallback if some columns are unavailable on the database yet
-      const message = (e?.message || '').toLowerCase();
-      if (message.includes('column') && (message.includes('next_watering') || message.includes('harvest_date'))) {
+
+      if (error) {
+        // Graceful degradation: save at least the watering schedule
         const { error: fallbackError } = await supabase
           .from('garden_zones')
           .update({
@@ -1010,11 +1016,22 @@ const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
             updated_at: new Date().toISOString()
           })
           .eq('id', zone.id);
-        if (!fallbackError) {
-          toast({ title: 'Saved', description: 'Watering schedule saved' });
-          setEditing(false);
-          return;
-        }
+
+        if (fallbackError) throw error;
+      }
+
+      toast({ title: 'Saved', description: 'Schedule updated for this zone' });
+      setEditing(false);
+    } catch (e: any) {
+      // Last resort: try schedule-only one more time in case of transient errors
+      const { error: lastResortError } = await supabase
+        .from('garden_zones')
+        .update({ watering_schedule: schedule || null })
+        .eq('id', zone.id);
+      if (!lastResortError) {
+        toast({ title: 'Saved', description: 'Watering schedule saved' });
+        setEditing(false);
+        return;
       }
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to save schedule' });
     }
