@@ -593,7 +593,17 @@ const FunctionalDashboard = () => {
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <EditableZoneName zone={zone} onRename={async (newName) => {
-                        await supabase.from('garden_zones').update({ name: newName }).eq('id', zone.id);
+                        const { error } = await supabase
+                          .from('garden_zones')
+                          .update({ name: newName, updated_at: new Date().toISOString() })
+                          .eq('id', zone.id);
+                        if (error) {
+                          toast({ variant: 'destructive', title: 'Rename failed', description: 'Could not update zone name' });
+                        } else {
+                          toast({ title: 'Zone Renamed', description: 'Name updated successfully' });
+                          // Refresh to reflect change immediately in UI
+                          await fetchGardenZones();
+                        }
                       }} />
                       <p className="text-sm text-muted-foreground">
                         {zone.plants_count} plants • Last watered {getTimeAgo(new Date(zone.last_watered))}
