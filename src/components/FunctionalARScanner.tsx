@@ -164,8 +164,9 @@ const FunctionalARScanner = () => {
                   soil_moisture: currentSensorData.soilMoisture,
                   light_hours: currentSensorData.lightHours,
                   plants_count: 0,
-                  status: spaceData.suitability === 'excellent' ? 'excellent' : 
-                          spaceData.suitability === 'good' ? 'good' : 'needs_attention'
+                  // Map suitability to valid status values
+                  status: spaceData.suitability === 'excellent' ? 'good' : 
+                          spaceData.suitability === 'good' ? 'good' : 'needs_water'
                 });
               
               if (zoneError) {
@@ -717,7 +718,7 @@ const FunctionalARScanner = () => {
                   <div key={index} className="flex items-center justify-between p-2 bg-muted/30 rounded-lg">
                     <div>
                       <p className="font-medium text-card-foreground">{plant.name}</p>
-                      <p className="text-xs text-muted-foreground">{plant.reason}</p>
+                      <p className="text-xs text-muted-foreground dark:text-white/80">{plant.reason}</p>
                     </div>
                     <Badge variant={plant.compatibility >= 90 ? "default" : "secondary"}>
                       {plant.compatibility}%
