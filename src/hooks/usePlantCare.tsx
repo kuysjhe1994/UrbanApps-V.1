@@ -129,7 +129,28 @@ export const usePlantCare = () => {
       if (!fetched || fetched.length === 0) {
         setPlants(DEFAULT_PLANTS);
       } else {
-        setPlants(fetched);
+        // Merge fetched plants with defaults to ensure a rich baseline
+        // Prefer database entries when plant names overlap, then add missing defaults
+        const fetchedByNameLowercase: Record<string, PlantCareData> = fetched.reduce(
+          (accumulator, currentPlant) => {
+            const key = (currentPlant.plant_name || '').toLowerCase().trim();
+            if (key) accumulator[key] = currentPlant;
+            return accumulator;
+          },
+          {} as Record<string, PlantCareData>
+        );
+
+        const defaultsNotInDatabase = DEFAULT_PLANTS.filter((defaultPlant) => {
+          const key = defaultPlant.plant_name.toLowerCase().trim();
+          return !fetchedByNameLowercase[key];
+        });
+
+        const mergedPlants: PlantCareData[] = [
+          ...fetched,
+          ...defaultsNotInDatabase,
+        ];
+
+        setPlants(mergedPlants);
       }
     } catch (error: any) {
       // On error, still provide defaults so UI can render recommendations

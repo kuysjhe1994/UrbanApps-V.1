@@ -63,27 +63,29 @@ const ARScanner = () => {
         </div>
       </div>
 
-      {/* AR Plant Suggestion */}
-      <div className="absolute bottom-32 left-4 right-4">
-        <Card className="p-4 bg-gradient-card backdrop-blur-md shadow-card border border-primary/20">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-              <div className="w-6 h-6 bg-primary rounded-full"></div>
+      {/* AR Plant Suggestions (static demo - multiple) */}
+      <div className="absolute bottom-32 left-4 right-4 space-y-3">
+        {[{ name: 'Basil', score: 95 }, { name: 'Tomato', score: 92 }, { name: 'Lettuce', score: 89 }].map((rec) => (
+          <Card key={rec.name} className="p-4 bg-gradient-card backdrop-blur-md shadow-card border border-primary/20">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                <div className="w-6 h-6 bg-primary rounded-full"></div>
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-card-foreground">Recommended: {rec.name}</h3>
+                <p className="text-sm text-muted-foreground mb-2">
+                  {rec.score}% compatibility with current conditions
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Great fit for your light and humidity
+                </p>
+              </div>
+              <Button size="sm" className="bg-gradient-primary">
+                Add Plant
+              </Button>
             </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-card-foreground">Recommended: Basil</h3>
-              <p className="text-sm text-muted-foreground mb-2">
-                95% compatibility with current conditions
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Projected growth: 12 inches in 30 days
-              </p>
-            </div>
-            <Button size="sm" className="bg-gradient-primary">
-              Add Plant
-            </Button>
-          </div>
-        </Card>
+          </Card>
+        ))}
       </div>
 
       {/* Bottom Controls */}
