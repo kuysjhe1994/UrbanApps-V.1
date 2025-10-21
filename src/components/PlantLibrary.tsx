@@ -117,7 +117,10 @@ const PlantLibrary = () => {
     (plant.scientific_name && plant.scientific_name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const recommendations = getRecommendationsForConditions(currentConditions, filteredAvailablePlants);
+  // Use allowed plants for recommendations when there are enough; otherwise fall back
+  // to the full library so we can always surface 4–5 suggestions
+  const recommendationSource = filteredAvailablePlants.length >= 4 ? filteredAvailablePlants : plants;
+  const recommendations = getRecommendationsForConditions(currentConditions, recommendationSource);
   
   // Apply difficulty filter
   const filteredRecommendations = recommendations.filter(rec => 

@@ -184,7 +184,8 @@ export const usePlantCare = () => {
         ? plants
         : DEFAULT_PLANTS;
 
-    return source.map(plant => {
+    // Score all plants against current conditions
+    const scored = source.map(plant => {
       const tempRange = plant.temperature_range;
       const humidityRange = plant.humidity_range;
       
@@ -261,8 +262,25 @@ export const usePlantCare = () => {
         reason: reasons.length > 0 ? reasons.join(", ") : "Suitable for your conditions",
         careData: plant
       };
-    }).filter(rec => rec.compatibility >= 60) // Only show plants with 60%+ compatibility
-      .sort((a, b) => b.compatibility - a.compatibility); // Sort by compatibility score
+    });
+
+    // Sort by compatibility score (desc)
+    const sorted = scored.sort((a, b) => b.compatibility - a.compatibility);
+
+    // Ensure we always return at least 4 high-quality recommendations
+    const MIN_RECOMMENDATIONS = 4;
+    let threshold = 60; // Start with the standard threshold
+
+    let filtered = sorted.filter((rec) => rec.compatibility >= threshold);
+
+    // Gradually relax threshold until we have enough items (but never below 30)
+    while (filtered.length < MIN_RECOMMENDATIONS && threshold > 30) {
+      threshold -= 5;
+      filtered = sorted.filter((rec) => rec.compatibility >= threshold);
+    }
+
+    // Return filtered, leaving callers free to slice as needed
+    return filtered;
   };
 
   useEffect(() => {
