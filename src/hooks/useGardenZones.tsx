@@ -58,23 +58,42 @@ export const useGardenZones = () => {
     if (!user) return null;
 
     try {
-      const { data, error } = await supabase
+      const insertBase = {
+        user_id: user.id,
+        name: zoneData.name,
+        plants_count: zoneData.plants_count || 0,
+        temperature: zoneData.temperature || 22,
+        humidity: zoneData.humidity || 50,
+        soil_moisture: zoneData.soil_moisture || 65,
+        light_hours: zoneData.light_hours || 6,
+        status: zoneData.status || 'good',
+      } as const;
+
+      // First attempt: include optional schedule/date fields
+      let { data, error } = await supabase
         .from('garden_zones')
         .insert({
-          user_id: user.id,
-          name: zoneData.name,
-          plants_count: zoneData.plants_count || 0,
-          temperature: zoneData.temperature || 22,
-          humidity: zoneData.humidity || 50,
-          soil_moisture: zoneData.soil_moisture || 65,
-          light_hours: zoneData.light_hours || 6,
-          status: zoneData.status || 'good',
+          ...insertBase,
           watering_schedule: zoneData.watering_schedule || null,
           next_watering: zoneData.next_watering || null,
-          harvest_date: zoneData.harvest_date || null
+          harvest_date: zoneData.harvest_date || null,
         })
         .select()
         .single();
+
+      if (error) {
+        const msg = String((error as any)?.message || '').toLowerCase();
+        // Fallback: if schema cache doesn’t have new columns yet, insert without them
+        if (msg.includes('harvest_date') || msg.includes('next_watering') || msg.includes('watering_schedule')) {
+          const retry = await supabase
+            .from('garden_zones')
+            .insert(insertBase)
+            .select()
+            .single();
+          data = retry.data as any;
+          error = retry.error as any;
+        }
+      }
 
       if (error) throw error;
 
