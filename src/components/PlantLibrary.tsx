@@ -176,6 +176,19 @@ const PlantLibrary = () => {
           .eq('id', zoneId);
 
         if (updateError) throw updateError;
+
+        // Link plant to this zone with per-plant schedule row
+        const { error: linkError } = await supabase
+          .from('zone_plants')
+          .insert({
+            user_id: user?.id!,
+            zone_id: zoneId,
+            plant_id: plantId,
+            notifications_enabled: true,
+          });
+        if (linkError && !String(linkError.message || '').toLowerCase().includes('duplicate')) {
+          console.warn('Failed to link plant to zone:', linkError);
+        }
         
         toast({
           title: "Plant Added to Garden!",
@@ -199,7 +212,7 @@ const PlantLibrary = () => {
           const plant = plants.find(p => p.id === plantId);
           const zoneName = `${plant?.plant_name || 'Plant'} Zone`;
           
-          const { error: createError } = await supabase
+          const { data: createdZone, error: createError } = await supabase
             .from('garden_zones')
             .insert({
               user_id: user?.id!,
@@ -210,14 +223,32 @@ const PlantLibrary = () => {
               soil_moisture: 65,
               light_hours: 6,
               status: 'good'
-            });
+            })
+            .select()
+            .single();
 
           if (createError) throw createError;
+          targetZone = createdZone as any;
           
           toast({
             title: "New Garden Zone Created!",
             description: `${zoneName} created with ${plantName} - check Monitor Screen`
           });
+
+          // Link plant to newly created zone
+          if (targetZone?.id) {
+            const { error: linkError } = await supabase
+              .from('zone_plants')
+              .insert({
+                user_id: user?.id!,
+                zone_id: targetZone.id,
+                plant_id: plantId,
+                notifications_enabled: true,
+              });
+            if (linkError && !String(linkError.message || '').toLowerCase().includes('duplicate')) {
+              console.warn('Failed to link plant to new zone:', linkError);
+            }
+          }
         } else {
           // Update existing zone
           const { error: updateError } = await supabase
@@ -230,6 +261,19 @@ const PlantLibrary = () => {
 
           if (updateError) throw updateError;
           
+          // Link plant to selected zone
+          const { error: linkError } = await supabase
+            .from('zone_plants')
+            .insert({
+              user_id: user?.id!,
+              zone_id: targetZone.id,
+              plant_id: plantId,
+              notifications_enabled: true,
+            });
+          if (linkError && !String(linkError.message || '').toLowerCase().includes('duplicate')) {
+            console.warn('Failed to link plant to zone:', linkError);
+          }
+
           toast({
             title: "Plant Added to Garden!",
             description: `${plantName} added to ${targetZone.name} - now has ${(targetZone.plants_count || 0) + 1} plants`
