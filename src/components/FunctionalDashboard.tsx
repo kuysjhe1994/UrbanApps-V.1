@@ -653,7 +653,12 @@ const FunctionalDashboard = () => {
                   </div>
 
                   {/* Schedule and Harvest Editor */}
-                  <ZoneScheduleEditor zone={zone} />
+                  <ZoneScheduleEditor
+                    zone={zone}
+                    onZoneUpdated={(updated) =>
+                      setGardenZones((prev) => prev.map((z) => (z.id === updated.id ? updated : z)))
+                    }
+                  />
 
                   {zone.status === 'critical' && (
                     <div className="space-y-3 pt-3 border-t border-destructive/20 bg-destructive/5 -m-4 mt-3 p-4 rounded-b-lg">
@@ -979,9 +984,10 @@ export default FunctionalDashboard;
 
 interface ZoneScheduleEditorProps {
   zone: GardenZone;
+  onZoneUpdated?: (updated: GardenZone) => void;
 }
 
-const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
+const ZoneScheduleEditor = ({ zone, onZoneUpdated }: ZoneScheduleEditorProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const [editing, setEditing] = useState(false);
@@ -1038,14 +1044,12 @@ const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
         harvest_date: harvestDateIso,
       };
 
-      const tryWithUpdates = async (fields: Record<string, unknown>) => {
-        const { error } = await attemptUpdate(fields);
-        return error as any | null;
-      };
-
       // 1) Try with all fields
-      let err = await tryWithUpdates(updates);
-      if (!err) {
+      let result = await attemptUpdate(updates);
+      if (!result.error) {
+        if (result.data) {
+          onZoneUpdated?.(result.data as GardenZone);
+        }
         toast({ title: 'Saved', description: 'Schedule updated for this zone' });
         setEditing(false);
         return;
@@ -1053,15 +1057,18 @@ const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
 
       // 2) Iteratively remove missing columns based on error messages
       const removableKeys = ['harvest_date', 'next_watering', 'watering_schedule'] as const;
-      for (let i = 0; i < removableKeys.length && err; i++) {
-        const message = String(err?.message || '').toLowerCase();
+      for (let i = 0; i < removableKeys.length && result.error; i++) {
+        const message = String(result.error?.message || '').toLowerCase();
         const missingKey = removableKeys.find((k) => message.includes(k));
         if (missingKey) {
           // Remove the offending field and retry
           // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
           delete (updates as any)[missingKey];
-          err = await tryWithUpdates(updates);
-          if (!err) {
+          result = await attemptUpdate(updates);
+          if (!result.error) {
+            if (result.data) {
+              onZoneUpdated?.(result.data as GardenZone);
+            }
             const partialNote = missingKey === 'harvest_date' || missingKey === 'next_watering' || missingKey === 'watering_schedule'
               ? ' (some fields pending DB migration)'
               : '';
@@ -1074,8 +1081,11 @@ const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
         // If error doesn't specify a particular field, drop the next key in order to be safe
         // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
         delete (updates as any)[removableKeys[i]];
-        err = await tryWithUpdates(updates);
-        if (!err) {
+        result = await attemptUpdate(updates);
+        if (!result.error) {
+          if (result.data) {
+            onZoneUpdated?.(result.data as GardenZone);
+          }
           toast({ title: 'Saved', description: 'Schedule updated (partial fields applied)' });
           setEditing(false);
           return;
@@ -1083,15 +1093,18 @@ const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
       }
 
       // 3) Final fallback: update only metadata (updated_at) so UI can proceed without schema columns
-      const { error: metaOnlyError } = await attemptUpdate({});
-      if (!metaOnlyError) {
+      const metaOnly = await attemptUpdate({});
+      if (!metaOnly.error) {
+        if (metaOnly.data) {
+          onZoneUpdated?.(metaOnly.data as GardenZone);
+        }
         toast({ title: 'Saved', description: 'Saved without schedule fields (pending DB migration)' });
         setEditing(false);
         return;
       }
 
       // If we get here, all attempts failed
-      throw err;
+      throw result.error;
     } catch (e: any) {
       const description = typeof e?.message === 'string' && e.message.length <= 120
         ? e.message
