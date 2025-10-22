@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useARScans } from "@/hooks/useARScans";
 import { usePlantCare } from "@/hooks/usePlantCare";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 
 interface GardenZone {
   id: string;
@@ -26,6 +27,8 @@ interface GardenZone {
   created_at: string;
   updated_at: string;
 }
+
+type ZonePlantRow = Tables<'zone_plants'> & { plant: Tables<'plant_care_data'> };
 
 interface Alert {
   id: number;
@@ -46,11 +49,13 @@ const FunctionalDashboard = () => {
   const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set());
   const [newZoneIds, setNewZoneIds] = useState<Set<string>>(new Set());
   const [zoneRecommendations, setZoneRecommendations] = useState<{[key: string]: any[]}>({});
+  const [zonePlants, setZonePlants] = useState<Record<string, ZonePlantRow[]>>({});
 
   // Load garden zones from database and dismissed alerts from localStorage
   useEffect(() => {
     if (user) {
       fetchGardenZones();
+      fetchZonePlants();
       setupRealtimeSubscription();
       
       // Load dismissed alerts from localStorage
@@ -144,6 +149,25 @@ const FunctionalDashboard = () => {
     }
   };
 
+  const fetchZonePlants = async () => {
+    if (!user?.id) return;
+    // Fetch all zone_plants for user and join plant details
+    const { data, error } = await supabase
+      .from('zone_plants')
+      .select('id, user_id, zone_id, plant_id, schedule_text, next_watering, harvest_date, notifications_enabled, last_notified_at, created_at, updated_at, plant:plant_care_data(*)')
+      .eq('user_id', user.id);
+    if (error) {
+      console.error('Failed to fetch zone plants', error);
+      return;
+    }
+    const byZone: Record<string, ZonePlantRow[]> = {};
+    (data as any[] || []).forEach((row: any) => {
+      if (!byZone[row.zone_id]) byZone[row.zone_id] = [];
+      byZone[row.zone_id].push(row as ZonePlantRow);
+    });
+    setZonePlants(byZone);
+  };
+
   const setupRealtimeSubscription = () => {
     const channel = supabase
       .channel('garden-zones-changes')
@@ -187,8 +211,19 @@ const FunctionalDashboard = () => {
       )
       .subscribe();
 
+    // Realtime for zone_plants
+    const zp = supabase
+      .channel('zone-plants-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'zone_plants', filter: `user_id=eq.${user?.id}` },
+        () => fetchZonePlants()
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(zp);
     };
   };
 
@@ -282,6 +317,49 @@ const FunctionalDashboard = () => {
     // Update alerts with new ones, filtering out dismissed alerts
     setAlerts(newAlerts);
   }, [gardenZones, dismissedAlerts, user]);
+
+  // Check per-plant schedule due dates and notify
+  useEffect(() => {
+    if (!user) return;
+    const now = new Date();
+    const today = new Date(now.toISOString().slice(0,10));
+    const due: { zoneId: string; plantName: string; date: string }[] = [];
+    Object.entries(zonePlants).forEach(([zoneId, rows]) => {
+      rows.forEach((row) => {
+        if (!row.notifications_enabled) return;
+        if (!row.next_watering) return;
+        const next = new Date(row.next_watering);
+        // Fire once per day when due or overdue and not already notified today
+        const alreadyNotifiedToday = row.last_notified_at && new Date(row.last_notified_at).toDateString() === today.toDateString();
+        if (!alreadyNotifiedToday && next <= now) {
+          due.push({ zoneId, plantName: row.plant?.plant_name || 'Plant', date: next.toLocaleDateString() });
+        }
+      });
+    });
+
+    if (due.length > 0) {
+      // Show a single toast summarizing or multiple toasts if a few
+      const first = due[0];
+      if (due.length === 1) {
+        toast({ title: 'Watering due', description: `${first.plantName} in this zone is due (${first.date})` });
+      } else {
+        toast({ title: 'Multiple plants due', description: `${due.length} plants have watering due today` });
+      }
+
+      // Mark as notified to avoid repeating within the same day
+      // Best-effort; do not block UI
+      due.slice(0, 5).forEach(async (d) => {
+        const match = zonePlants[d.zoneId]?.find((r) => (r.plant?.plant_name || 'Plant') === d.plantName);
+        if (match) {
+          await supabase
+            .from('zone_plants')
+            .update({ last_notified_at: new Date().toISOString() })
+            .eq('id', match.id)
+            .eq('user_id', user.id);
+        }
+      });
+    }
+  }, [zonePlants, user, toast]);
 
   const waterPlant = async (zoneId: string) => {
     try {
@@ -385,6 +463,22 @@ const FunctionalDashboard = () => {
         .eq('id', zoneId);
 
       if (error) throw error;
+
+      // Create zone_plants link row
+      const { error: linkError } = await supabase
+        .from('zone_plants')
+        .insert({
+          user_id: user!.id,
+          zone_id: zoneId,
+          plant_id: plantId,
+          notifications_enabled: true,
+        });
+      if (linkError && !String(linkError.message || '').toLowerCase().includes('duplicate')) {
+        console.warn('Failed to link plant to zone:', linkError);
+      } else {
+        // Refresh zone plants list
+        fetchZonePlants();
+      }
 
       toast({
         title: "Plant Added!",
@@ -666,6 +760,42 @@ const FunctionalDashboard = () => {
                       setGardenZones((prev) => prev.map((z) => (z.id === updated.id ? updated : z)))
                     }
                   />
+
+                  {/* Plants in this Zone with per-plant schedules */}
+                  <div className="mt-3 pt-3 border-t border-border/40 -m-4 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Leaf className="h-4 w-4 text-primary" />
+                      <h4 className="text-sm font-medium text-foreground">Plants in {zone.name}</h4>
+                      <Badge variant="secondary" className="text-xs">
+                        {zonePlants[zone.id]?.length || 0}
+                      </Badge>
+                    </div>
+                    {(zonePlants[zone.id] && zonePlants[zone.id].length > 0) ? (
+                      <div className="space-y-2">
+                        {zonePlants[zone.id].map((zp) => (
+                          <div key={zp.id} className="flex items-center justify-between p-2 bg-card/60 rounded border border-primary/10">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="text-lg">🌱</div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-foreground truncate">{zp.plant?.plant_name || 'Plant'}</p>
+                                <p className="text-xs text-muted-foreground flex flex-wrap gap-2">
+                                  <span>Schedule: <span className="text-foreground">{zp.schedule_text || '—'}</span></span>
+                                  <span>Next: <span className="text-foreground">{zp.next_watering ? new Date(zp.next_watering).toLocaleDateString() : '—'}</span></span>
+                                  <span>Harvest: <span className="text-foreground">{zp.harvest_date ? new Date(zp.harvest_date).toLocaleDateString() : '—'}</span></span>
+                                </p>
+                              </div>
+                            </div>
+                            <PerPlantScheduleEditor
+                              row={zp}
+                              onSaved={() => fetchZonePlants()}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No plants linked to this zone yet.</p>
+                    )}
+                  </div>
 
                   {zone.status === 'critical' && (
                     <div className="space-y-3 pt-3 border-t border-destructive/20 bg-destructive/5 -m-4 mt-3 p-4 rounded-b-lg">
@@ -1197,6 +1327,101 @@ const ZoneScheduleEditor = ({ zone, onZoneUpdated }: ZoneScheduleEditorProps) =>
             <Button size="sm" variant="outline" onClick={() => setEditing(false)}>
               Cancel
             </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+interface PerPlantScheduleEditorProps {
+  row: ZonePlantRow;
+  onSaved?: () => void;
+}
+
+const PerPlantScheduleEditor = ({ row, onSaved }: PerPlantScheduleEditorProps) => {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const [editing, setEditing] = useState(false);
+  const [schedule, setSchedule] = useState<string>(row.schedule_text || '');
+  const [nextDate, setNextDate] = useState<string>(row.next_watering ? new Date(row.next_watering).toISOString().slice(0,10) : '');
+  const [harvestDate, setHarvestDate] = useState<string>(row.harvest_date ? new Date(row.harvest_date).toISOString().slice(0,10) : '');
+  const [enabled, setEnabled] = useState<boolean>(row.notifications_enabled ?? true);
+
+  useEffect(() => {
+    setSchedule(row.schedule_text || '');
+    setNextDate(row.next_watering ? new Date(row.next_watering).toISOString().slice(0,10) : '');
+    setHarvestDate(row.harvest_date ? new Date(row.harvest_date).toISOString().slice(0,10) : '');
+    setEnabled(row.notifications_enabled ?? true);
+  }, [row.id, row.schedule_text, row.next_watering, row.harvest_date, row.notifications_enabled]);
+
+  const toIsoMidnightUtc = (yyyyMmDd: string): string | null => {
+    if (!yyyyMmDd) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(yyyyMmDd)) return null;
+    return new Date(`${yyyyMmDd}T00:00:00.000Z`).toISOString();
+  };
+
+  const save = async () => {
+    try {
+      const { error, data } = await supabase
+        .from('zone_plants')
+        .update({
+          schedule_text: schedule.trim() || null,
+          next_watering: toIsoMidnightUtc(nextDate),
+          harvest_date: toIsoMidnightUtc(harvestDate),
+          notifications_enabled: enabled,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', row.id)
+        .eq('user_id', user?.id || '')
+        .select()
+        .single();
+      if (error) throw error;
+      toast({ title: 'Saved', description: `${row.plant?.plant_name || 'Plant'} schedule updated` });
+      setEditing(false);
+      onSaved?.();
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Error', description: e?.message || 'Failed to save schedule' });
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      {!editing ? (
+        <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+          <Edit3 className="h-3 w-3 mr-1" /> Edit
+        </Button>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end">
+          <input
+            className="w-full text-xs px-2 py-1 rounded border bg-background"
+            placeholder="e.g., Every 3 days"
+            value={schedule}
+            onChange={(e) => setSchedule(e.target.value)}
+          />
+          <input
+            type="date"
+            className="w-full text-xs px-2 py-1 rounded border bg-background"
+            value={nextDate}
+            onChange={(e) => setNextDate(e.target.value)}
+          />
+          <input
+            type="date"
+            className="w-full text-xs px-2 py-1 rounded border bg-background"
+            value={harvestDate}
+            onChange={(e) => setHarvestDate(e.target.value)}
+          />
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-muted-foreground">Notify</label>
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={(e) => setEnabled(e.target.checked)}
+            />
+          </div>
+          <div className="flex gap-2 sm:col-span-4">
+            <Button size="sm" onClick={save} className="ml-auto">Save</Button>
+            <Button size="sm" variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
           </div>
         </div>
       )}

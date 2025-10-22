@@ -107,6 +107,63 @@ export type Database = {
         }
         Relationships: []
       }
+      zone_plants: {
+        Row: {
+          id: string
+          user_id: string
+          zone_id: string
+          plant_id: string
+          schedule_text: string | null
+          next_watering: string | null
+          harvest_date: string | null
+          notifications_enabled: boolean | null
+          last_notified_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          zone_id: string
+          plant_id: string
+          schedule_text?: string | null
+          next_watering?: string | null
+          harvest_date?: string | null
+          notifications_enabled?: boolean | null
+          last_notified_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          zone_id?: string
+          plant_id?: string
+          schedule_text?: string | null
+          next_watering?: string | null
+          harvest_date?: string | null
+          notifications_enabled?: boolean | null
+          last_notified_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zone_plants_zone_id_fkey",
+            columns: ["zone_id"],
+            isOneToOne: false,
+            referencedRelation: "garden_zones",
+            referencedColumns: ["id"],
+          },
+          {
+            foreignKeyName: "zone_plants_plant_id_fkey",
+            columns: ["plant_id"],
+            isOneToOne: false,
+            referencedRelation: "plant_care_data",
+            referencedColumns: ["id"],
+          },
+        ]
+      }
       plant_care_data: {
         Row: {
           care_difficulty: string | null
