@@ -1018,53 +1018,61 @@ const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
     const harvestDateIso = toIsoMidnightUtc(harvestDateOnly);
 
     try {
-      const { data, error } = await supabase
-        .from('garden_zones')
-        .update({
-          watering_schedule: trimmedSchedule || null,
-          next_watering: nextWateringIso,
-          harvest_date: harvestDateIso,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', zone.id)
-        .eq('user_id', user?.id || '')
-        .select()
-        .single();
-
-      if (error) {
-        // Fallback: try saving watering_schedule only
-        const { error: fallbackError } = await supabase
+      const attemptUpdate = async (updates: Record<string, unknown>) => {
+        return await supabase
           .from('garden_zones')
           .update({
-            watering_schedule: trimmedSchedule || null,
+            ...updates,
             updated_at: new Date().toISOString(),
           })
           .eq('id', zone.id)
           .eq('user_id', user?.id || '')
           .select()
           .single();
+      };
 
-        if (fallbackError) throw error;
+      // First attempt: all fields
+      const { error: allError } = await attemptUpdate({
+        watering_schedule: trimmedSchedule || null,
+        next_watering: nextWateringIso,
+        harvest_date: harvestDateIso,
+      });
+
+      if (!allError) {
+        toast({ title: 'Saved', description: 'Schedule updated for this zone' });
+        setEditing(false);
+        return;
       }
 
-      toast({ title: 'Saved', description: 'Schedule updated for this zone' });
-      setEditing(false);
-    } catch (e: any) {
-      // Last resort: try schedule-only one more time in case of transient errors
-      const { error: lastResortError } = await supabase
-        .from('garden_zones')
-        .update({ watering_schedule: (schedule || '').trim() || null })
-        .eq('id', zone.id)
-        .eq('user_id', user?.id || '')
-        .select()
-        .single();
+      const message = String((allError as any)?.message || '').toLowerCase();
 
-      if (!lastResortError) {
+      // Second attempt: drop harvest_date if not in schema cache
+      if (message.includes('harvest_date')) {
+        const { error: noHarvestError } = await attemptUpdate({
+          watering_schedule: trimmedSchedule || null,
+          next_watering: nextWateringIso,
+        });
+        if (!noHarvestError) {
+          toast({ title: 'Saved', description: 'Schedule updated (harvest date pending DB migration)' });
+          setEditing(false);
+          return;
+        }
+      }
+
+      // Third attempt: schedule only (works even if date columns are missing)
+      const { error: scheduleOnlyError } = await attemptUpdate({
+        watering_schedule: trimmedSchedule || null,
+      });
+
+      if (!scheduleOnlyError) {
         toast({ title: 'Saved', description: 'Watering schedule saved' });
         setEditing(false);
         return;
       }
 
+      // If we get here, all attempts failed
+      throw allError;
+    } catch (e: any) {
       const description = typeof e?.message === 'string' && e.message.length <= 120
         ? e.message
         : 'Failed to save schedule';
