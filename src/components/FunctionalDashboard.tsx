@@ -1049,6 +1049,18 @@ const ZoneScheduleEditor = ({ zone, onZoneUpdated }: ZoneScheduleEditorProps) =>
     const harvestDateIso = toIsoMidnightUtc(harvestDateOnly);
 
     try {
+      // Ensure UI reflects saved schedule immediately, even if DB columns lag
+      const buildUpdatedZone = (serverZone?: Partial<GardenZone>): GardenZone => {
+        return {
+          ...zone,
+          ...(serverZone || {}),
+          // Prefer the just-entered values for immediate UI feedback
+          watering_schedule: trimmedSchedule || null,
+          next_watering: nextWateringIso,
+          harvest_date: harvestDateIso,
+        } as GardenZone;
+      };
+
       const attemptUpdate = async (updates: Record<string, unknown>) => {
         return await supabase
           .from('garden_zones')
@@ -1072,9 +1084,7 @@ const ZoneScheduleEditor = ({ zone, onZoneUpdated }: ZoneScheduleEditorProps) =>
       // 1) Try with all fields
       let result = await attemptUpdate(updates);
       if (!result.error) {
-        if (result.data) {
-          onZoneUpdated?.(result.data as GardenZone);
-        }
+        onZoneUpdated?.(buildUpdatedZone(result.data as Partial<GardenZone>));
         toast({ title: 'Saved', description: 'Schedule updated for this zone' });
         setEditing(false);
         return;
@@ -1091,9 +1101,7 @@ const ZoneScheduleEditor = ({ zone, onZoneUpdated }: ZoneScheduleEditorProps) =>
           delete (updates as any)[missingKey];
           result = await attemptUpdate(updates);
           if (!result.error) {
-            if (result.data) {
-              onZoneUpdated?.(result.data as GardenZone);
-            }
+            onZoneUpdated?.(buildUpdatedZone(result.data as Partial<GardenZone>));
             const partialNote = missingKey === 'harvest_date' || missingKey === 'next_watering' || missingKey === 'watering_schedule'
               ? ' (some fields pending DB migration)'
               : '';
@@ -1108,9 +1116,7 @@ const ZoneScheduleEditor = ({ zone, onZoneUpdated }: ZoneScheduleEditorProps) =>
         delete (updates as any)[removableKeys[i]];
         result = await attemptUpdate(updates);
         if (!result.error) {
-          if (result.data) {
-            onZoneUpdated?.(result.data as GardenZone);
-          }
+          onZoneUpdated?.(buildUpdatedZone(result.data as Partial<GardenZone>));
           toast({ title: 'Saved', description: 'Schedule updated (partial fields applied)' });
           setEditing(false);
           return;
@@ -1120,9 +1126,7 @@ const ZoneScheduleEditor = ({ zone, onZoneUpdated }: ZoneScheduleEditorProps) =>
       // 3) Final fallback: update only metadata (updated_at) so UI can proceed without schema columns
       const metaOnly = await attemptUpdate({});
       if (!metaOnly.error) {
-        if (metaOnly.data) {
-          onZoneUpdated?.(metaOnly.data as GardenZone);
-        }
+        onZoneUpdated?.(buildUpdatedZone(metaOnly.data as Partial<GardenZone>));
         toast({ title: 'Saved', description: 'Saved without schedule fields (pending DB migration)' });
         setEditing(false);
         return;
