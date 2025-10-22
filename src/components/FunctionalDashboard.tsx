@@ -593,15 +593,22 @@ const FunctionalDashboard = () => {
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <EditableZoneName zone={zone} onRename={async (newName) => {
-                        const { error } = await supabase
+                        const { data, error } = await supabase
                           .from('garden_zones')
                           .update({ name: newName, updated_at: new Date().toISOString() })
-                          .eq('id', zone.id);
+                          .eq('id', zone.id)
+                          .eq('user_id', user?.id || '')
+                          .select()
+                          .single();
                         if (error) {
                           toast({ variant: 'destructive', title: 'Error', description: 'Failed to rename zone' });
                           throw error;
                         }
-                        setGardenZones(prev => prev.map(z => z.id === zone.id ? { ...z, name: newName } : z));
+                        if (data) {
+                          setGardenZones(prev => prev.map(z => z.id === zone.id ? (data as GardenZone) : z));
+                        } else {
+                          setGardenZones(prev => prev.map(z => z.id === zone.id ? { ...z, name: newName } : z));
+                        }
                         toast({ title: 'Renamed', description: 'Zone name updated' });
                       }} />
                       <p className="text-sm text-muted-foreground">
@@ -938,6 +945,7 @@ interface EditableZoneNameProps {
 const EditableZoneName = ({ zone, onRename }: EditableZoneNameProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(zone.name);
+  const { toast } = useToast();
 
   useEffect(() => {
     setValue(zone.name);
@@ -945,7 +953,19 @@ const EditableZoneName = ({ zone, onRename }: EditableZoneNameProps) => {
 
   const save = async () => {
     const trimmed = value.trim();
-    if (!trimmed || trimmed === zone.name) {
+    if (!trimmed) {
+      toast({ variant: 'destructive', title: 'Invalid name', description: 'Zone name cannot be empty.' });
+      return;
+    }
+    if (trimmed.length > 40) {
+      toast({ variant: 'destructive', title: 'Name too long', description: 'Keep zone names under 40 characters.' });
+      return;
+    }
+    if (!/^[\p{L}\p{N} _'\-]+$/u.test(trimmed)) {
+      toast({ variant: 'destructive', title: 'Invalid characters', description: "Use letters, numbers, spaces, _ - ' only." });
+      return;
+    }
+    if (trimmed === zone.name) {
       setIsEditing(false);
       return;
     }
@@ -968,13 +988,18 @@ const EditableZoneName = ({ zone, onRename }: EditableZoneNameProps) => {
           autoFocus
         />
       ) : (
-        <h3
-          className="font-medium text-card-foreground cursor-text hover:underline decoration-dotted"
-          onClick={() => setIsEditing(true)}
-          title="Click to rename zone"
-        >
-          {zone.name}
-        </h3>
+        <div className="flex items-center gap-2">
+          <h3
+            className="font-medium text-card-foreground cursor-text hover:underline decoration-dotted"
+            onClick={() => setIsEditing(true)}
+            title="Click to rename zone"
+          >
+            {zone.name}
+          </h3>
+          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setIsEditing(true)} aria-label="Rename zone">
+            <Edit3 className="h-3 w-3" />
+          </Button>
+        </div>
       )}
     </div>
   );
