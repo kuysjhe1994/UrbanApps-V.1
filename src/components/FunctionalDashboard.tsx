@@ -593,15 +593,22 @@ const FunctionalDashboard = () => {
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <EditableZoneName zone={zone} onRename={async (newName) => {
-                        const { error } = await supabase
+                        const { data, error } = await supabase
                           .from('garden_zones')
                           .update({ name: newName, updated_at: new Date().toISOString() })
-                          .eq('id', zone.id);
+                          .eq('id', zone.id)
+                          .eq('user_id', user?.id || '')
+                          .select()
+                          .single();
                         if (error) {
                           toast({ variant: 'destructive', title: 'Error', description: 'Failed to rename zone' });
                           throw error;
                         }
-                        setGardenZones(prev => prev.map(z => z.id === zone.id ? { ...z, name: newName } : z));
+                        if (data) {
+                          setGardenZones(prev => prev.map(z => z.id === zone.id ? (data as GardenZone) : z));
+                        } else {
+                          setGardenZones(prev => prev.map(z => z.id === zone.id ? { ...z, name: newName } : z));
+                        }
                         toast({ title: 'Renamed', description: 'Zone name updated' });
                       }} />
                       <p className="text-sm text-muted-foreground">
@@ -653,7 +660,12 @@ const FunctionalDashboard = () => {
                   </div>
 
                   {/* Schedule and Harvest Editor */}
-                  <ZoneScheduleEditor zone={zone} />
+                  <ZoneScheduleEditor
+                    zone={zone}
+                    onZoneUpdated={(updated) =>
+                      setGardenZones((prev) => prev.map((z) => (z.id === updated.id ? updated : z)))
+                    }
+                  />
 
                   {zone.status === 'critical' && (
                     <div className="space-y-3 pt-3 border-t border-destructive/20 bg-destructive/5 -m-4 mt-3 p-4 rounded-b-lg">
@@ -933,6 +945,7 @@ interface EditableZoneNameProps {
 const EditableZoneName = ({ zone, onRename }: EditableZoneNameProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(zone.name);
+  const { toast } = useToast();
 
   useEffect(() => {
     setValue(zone.name);
@@ -940,7 +953,19 @@ const EditableZoneName = ({ zone, onRename }: EditableZoneNameProps) => {
 
   const save = async () => {
     const trimmed = value.trim();
-    if (!trimmed || trimmed === zone.name) {
+    if (!trimmed) {
+      toast({ variant: 'destructive', title: 'Invalid name', description: 'Zone name cannot be empty.' });
+      return;
+    }
+    if (trimmed.length > 40) {
+      toast({ variant: 'destructive', title: 'Name too long', description: 'Keep zone names under 40 characters.' });
+      return;
+    }
+    if (!/^[\p{L}\p{N} _'\-]+$/u.test(trimmed)) {
+      toast({ variant: 'destructive', title: 'Invalid characters', description: "Use letters, numbers, spaces, _ - ' only." });
+      return;
+    }
+    if (trimmed === zone.name) {
       setIsEditing(false);
       return;
     }
@@ -963,13 +988,18 @@ const EditableZoneName = ({ zone, onRename }: EditableZoneNameProps) => {
           autoFocus
         />
       ) : (
-        <h3
-          className="font-medium text-card-foreground cursor-text hover:underline decoration-dotted"
-          onClick={() => setIsEditing(true)}
-          title="Click to rename zone"
-        >
-          {zone.name}
-        </h3>
+        <div className="flex items-center gap-2">
+          <h3
+            className="font-medium text-card-foreground cursor-text hover:underline decoration-dotted"
+            onClick={() => setIsEditing(true)}
+            title="Click to rename zone"
+          >
+            {zone.name}
+          </h3>
+          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setIsEditing(true)} aria-label="Rename zone">
+            <Edit3 className="h-3 w-3" />
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -979,9 +1009,10 @@ export default FunctionalDashboard;
 
 interface ZoneScheduleEditorProps {
   zone: GardenZone;
+  onZoneUpdated?: (updated: GardenZone) => void;
 }
 
-const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
+const ZoneScheduleEditor = ({ zone, onZoneUpdated }: ZoneScheduleEditorProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const [editing, setEditing] = useState(false);
@@ -1038,14 +1069,12 @@ const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
         harvest_date: harvestDateIso,
       };
 
-      const tryWithUpdates = async (fields: Record<string, unknown>) => {
-        const { error } = await attemptUpdate(fields);
-        return error as any | null;
-      };
-
       // 1) Try with all fields
-      let err = await tryWithUpdates(updates);
-      if (!err) {
+      let result = await attemptUpdate(updates);
+      if (!result.error) {
+        if (result.data) {
+          onZoneUpdated?.(result.data as GardenZone);
+        }
         toast({ title: 'Saved', description: 'Schedule updated for this zone' });
         setEditing(false);
         return;
@@ -1053,15 +1082,18 @@ const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
 
       // 2) Iteratively remove missing columns based on error messages
       const removableKeys = ['harvest_date', 'next_watering', 'watering_schedule'] as const;
-      for (let i = 0; i < removableKeys.length && err; i++) {
-        const message = String(err?.message || '').toLowerCase();
+      for (let i = 0; i < removableKeys.length && result.error; i++) {
+        const message = String(result.error?.message || '').toLowerCase();
         const missingKey = removableKeys.find((k) => message.includes(k));
         if (missingKey) {
           // Remove the offending field and retry
           // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
           delete (updates as any)[missingKey];
-          err = await tryWithUpdates(updates);
-          if (!err) {
+          result = await attemptUpdate(updates);
+          if (!result.error) {
+            if (result.data) {
+              onZoneUpdated?.(result.data as GardenZone);
+            }
             const partialNote = missingKey === 'harvest_date' || missingKey === 'next_watering' || missingKey === 'watering_schedule'
               ? ' (some fields pending DB migration)'
               : '';
@@ -1074,8 +1106,11 @@ const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
         // If error doesn't specify a particular field, drop the next key in order to be safe
         // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
         delete (updates as any)[removableKeys[i]];
-        err = await tryWithUpdates(updates);
-        if (!err) {
+        result = await attemptUpdate(updates);
+        if (!result.error) {
+          if (result.data) {
+            onZoneUpdated?.(result.data as GardenZone);
+          }
           toast({ title: 'Saved', description: 'Schedule updated (partial fields applied)' });
           setEditing(false);
           return;
@@ -1083,15 +1118,18 @@ const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
       }
 
       // 3) Final fallback: update only metadata (updated_at) so UI can proceed without schema columns
-      const { error: metaOnlyError } = await attemptUpdate({});
-      if (!metaOnlyError) {
+      const metaOnly = await attemptUpdate({});
+      if (!metaOnly.error) {
+        if (metaOnly.data) {
+          onZoneUpdated?.(metaOnly.data as GardenZone);
+        }
         toast({ title: 'Saved', description: 'Saved without schedule fields (pending DB migration)' });
         setEditing(false);
         return;
       }
 
       // If we get here, all attempts failed
-      throw err;
+      throw result.error;
     } catch (e: any) {
       const description = typeof e?.message === 'string' && e.message.length <= 120
         ? e.message
