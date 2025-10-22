@@ -983,39 +983,66 @@ interface ZoneScheduleEditorProps {
 
 const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [editing, setEditing] = useState(false);
   const [schedule, setSchedule] = useState(zone.watering_schedule || '');
-  const [nextWatering, setNextWatering] = useState<string>(zone.next_watering || '');
-  const [harvestDate, setHarvestDate] = useState<string>(zone.harvest_date || '');
+  // Keep dates as YYYY-MM-DD for reliability with <input type="date"/>
+  const [nextWateringDateOnly, setNextWateringDateOnly] = useState<string>(
+    zone.next_watering ? new Date(zone.next_watering).toISOString().slice(0, 10) : ''
+  );
+  const [harvestDateOnly, setHarvestDateOnly] = useState<string>(
+    zone.harvest_date ? new Date(zone.harvest_date).toISOString().slice(0, 10) : ''
+  );
 
   useEffect(() => {
     setSchedule(zone.watering_schedule || '');
-    setNextWatering(zone.next_watering || '');
-    setHarvestDate(zone.harvest_date || '');
+    setNextWateringDateOnly(zone.next_watering ? new Date(zone.next_watering).toISOString().slice(0, 10) : '');
+    setHarvestDateOnly(zone.harvest_date ? new Date(zone.harvest_date).toISOString().slice(0, 10) : '');
   }, [zone.watering_schedule, zone.next_watering, zone.harvest_date]);
 
-  const save = async () => {
+  const toIsoMidnightUtc = (yyyyMmDd: string): string | null => {
+    if (!yyyyMmDd) return null;
+    // Expecting strictly YYYY-MM-DD
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(yyyyMmDd)) return null;
     try {
-      // Attempt full update (all fields)
-      const { error } = await supabase
+      const iso = new Date(`${yyyyMmDd}T00:00:00.000Z`).toISOString();
+      return iso;
+    } catch {
+      return null;
+    }
+  };
+
+  const save = async () => {
+    const trimmedSchedule = schedule.trim();
+    const nextWateringIso = toIsoMidnightUtc(nextWateringDateOnly);
+    const harvestDateIso = toIsoMidnightUtc(harvestDateOnly);
+
+    try {
+      const { data, error } = await supabase
         .from('garden_zones')
         .update({
-          watering_schedule: schedule || null,
-          next_watering: nextWatering || null,
-          harvest_date: harvestDate || null,
-          updated_at: new Date().toISOString()
+          watering_schedule: trimmedSchedule || null,
+          next_watering: nextWateringIso,
+          harvest_date: harvestDateIso,
+          updated_at: new Date().toISOString(),
         })
-        .eq('id', zone.id);
+        .eq('id', zone.id)
+        .eq('user_id', user?.id || '')
+        .select()
+        .single();
 
       if (error) {
-        // Graceful degradation: save at least the watering schedule
+        // Fallback: try saving watering_schedule only
         const { error: fallbackError } = await supabase
           .from('garden_zones')
           .update({
-            watering_schedule: schedule || null,
-            updated_at: new Date().toISOString()
+            watering_schedule: trimmedSchedule || null,
+            updated_at: new Date().toISOString(),
           })
-          .eq('id', zone.id);
+          .eq('id', zone.id)
+          .eq('user_id', user?.id || '')
+          .select()
+          .single();
 
         if (fallbackError) throw error;
       }
@@ -1026,14 +1053,22 @@ const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
       // Last resort: try schedule-only one more time in case of transient errors
       const { error: lastResortError } = await supabase
         .from('garden_zones')
-        .update({ watering_schedule: schedule || null })
-        .eq('id', zone.id);
+        .update({ watering_schedule: (schedule || '').trim() || null })
+        .eq('id', zone.id)
+        .eq('user_id', user?.id || '')
+        .select()
+        .single();
+
       if (!lastResortError) {
         toast({ title: 'Saved', description: 'Watering schedule saved' });
         setEditing(false);
         return;
       }
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to save schedule' });
+
+      const description = typeof e?.message === 'string' && e.message.length <= 120
+        ? e.message
+        : 'Failed to save schedule';
+      toast({ variant: 'destructive', title: 'Error', description });
     }
   };
 
@@ -1072,11 +1107,8 @@ const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
             <input
               type="date"
               className="w-full text-sm px-2 py-1 rounded border bg-background"
-              value={nextWatering ? new Date(nextWatering).toISOString().substring(0, 10) : ''}
-              onChange={(e) => {
-                const d = e.target.value ? new Date(e.target.value) : null;
-                setNextWatering(d ? new Date(d.getTime() + d.getTimezoneOffset() * 60000).toISOString() : '');
-              }}
+              value={nextWateringDateOnly}
+              onChange={(e) => setNextWateringDateOnly(e.target.value)}
             />
           </div>
           <div>
@@ -1084,11 +1116,8 @@ const ZoneScheduleEditor = ({ zone }: ZoneScheduleEditorProps) => {
             <input
               type="date"
               className="w-full text-sm px-2 py-1 rounded border bg-background"
-              value={harvestDate ? new Date(harvestDate).toISOString().substring(0, 10) : ''}
-              onChange={(e) => {
-                const d = e.target.value ? new Date(e.target.value) : null;
-                setHarvestDate(d ? new Date(d.getTime() + d.getTimezoneOffset() * 60000).toISOString() : '');
-              }}
+              value={harvestDateOnly}
+              onChange={(e) => setHarvestDateOnly(e.target.value)}
             />
           </div>
           <div className="flex gap-2 sm:col-span-3">
