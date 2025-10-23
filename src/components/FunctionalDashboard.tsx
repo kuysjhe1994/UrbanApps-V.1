@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useARScans } from "@/hooks/useARScans";
-import { usePlantCare } from "@/hooks/usePlantCare";
+import { PlantCareData, usePlantCare } from "@/hooks/usePlantCare";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -146,6 +146,57 @@ const FunctionalDashboard = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Ensure the plant exists in DB; create it if the item came from the fallback dataset
+  const ensurePlantExists = async (careData: PlantCareData): Promise<string | null> => {
+    // Quick UUID v4 check
+    const uuidV4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (uuidV4Regex.test(careData.id)) {
+      return careData.id;
+    }
+
+    try {
+      // Try to find by exact plant_name
+      const { data: existing, error: findError } = await supabase
+        .from('plant_care_data')
+        .select('id')
+        .eq('plant_name', careData.plant_name)
+        .maybeSingle();
+      if (!findError && existing?.id) {
+        return existing.id as string;
+      }
+
+      // Insert minimal row if not found
+      const { data: inserted, error: insertError } = await supabase
+        .from('plant_care_data')
+        .insert({
+          plant_name: careData.plant_name,
+          scientific_name: careData.scientific_name ?? null,
+          care_difficulty: careData.care_difficulty ?? null,
+          watering_frequency: careData.watering_frequency ?? null,
+          light_requirements: careData.light_requirements ?? null,
+          temperature_range: careData.temperature_range ?? null,
+          humidity_range: careData.humidity_range ?? null,
+          soil_type: careData.soil_type ?? null,
+          growth_rate: careData.growth_rate ?? null,
+          max_height: careData.max_height ?? null,
+          care_tips: careData.care_tips ?? null,
+          common_issues: careData.common_issues ?? null,
+        })
+        .select('id')
+        .single();
+
+      if (insertError) {
+        console.error('Failed to ensure plant exists:', insertError);
+        return null;
+      }
+
+      return inserted?.id as string;
+    } catch (e) {
+      console.error('ensurePlantExists error:', e);
+      return null;
     }
   };
 
@@ -464,13 +515,22 @@ const FunctionalDashboard = () => {
 
       if (error) throw error;
 
+      // Ensure we have a valid DB plant id (fallback plants may not exist in DB)
+      const rec = zoneRecommendations[zoneId]?.find((r) => r?.careData?.id === plantId);
+      const careData: PlantCareData | undefined = rec?.careData;
+      const dbPlantId = careData ? await ensurePlantExists(careData) : plantId;
+      if (!dbPlantId) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Unable to save this plant to the database' });
+        return;
+      }
+
       // Create zone_plants link row
       const { error: linkError } = await supabase
         .from('zone_plants')
         .insert({
           user_id: user!.id,
           zone_id: zoneId,
-          plant_id: plantId,
+          plant_id: dbPlantId,
           notifications_enabled: true,
         });
       if (linkError && !String(linkError.message || '').toLowerCase().includes('duplicate')) {
@@ -705,9 +765,9 @@ const FunctionalDashboard = () => {
                         }
                         toast({ title: 'Renamed', description: 'Zone name updated' });
                       }} />
-                      <p className="text-sm text-muted-foreground">
-                        {zone.plants_count} plants • Last watered {getTimeAgo(new Date(zone.last_watered))}
-                      </p>
+          <p className="text-sm text-muted-foreground">
+            {(zonePlants[zone.id]?.length ?? 0)} plants • Last watered {zone.last_watered ? getTimeAgo(new Date(zone.last_watered)) : 'Recently'}
+          </p>
                       <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
                         <span>Schedule: {zone.watering_schedule || '—'}</span>
                         {zone.next_watering && <span>• Next: {new Date(zone.next_watering).toLocaleDateString()}</span>}
