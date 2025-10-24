@@ -54,20 +54,13 @@ const Profile = () => {
     if (!user) return;
     
     try {
-      // Fetch garden zones count and total plants from zone_plants linking table
+      // Fetch garden zones and use plants_count to compute totals
       const { data: zones, error: zonesError } = await supabase
         .from('garden_zones')
-        .select('id')
+        .select('id, plants_count')
         .eq('user_id', user.id);
 
       if (zonesError) throw zonesError;
-
-      const { data: zp, error: zpError } = await supabase
-        .from('zone_plants')
-        .select('id')
-        .eq('user_id', user.id);
-
-      if (zpError) throw zpError;
 
       // Fetch AR scans count for tracking
       const { data: scansData, error: scansError } = await supabase
@@ -78,7 +71,7 @@ const Profile = () => {
       if (scansError) throw scansError;
 
       const totalZones = zones?.length || 0;
-      const totalPlants = zp?.length || 0;
+      const totalPlants = (zones || []).reduce((sum, z: any) => sum + (z.plants_count || 0), 0);
       const totalARScans = scansData?.length || 0;
 
       setGardenStats({ zones: totalZones, plants: totalPlants });
