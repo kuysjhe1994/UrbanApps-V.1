@@ -51,6 +51,40 @@ const FunctionalDashboard = () => {
   const [zoneRecommendations, setZoneRecommendations] = useState<{[key: string]: any[]}>({});
   const [zonePlants, setZonePlants] = useState<Record<string, ZonePlantRow[]>>({});
 
+  // ---- Local persistence for zone schedules to prevent disappearing values ----
+  const persistZoneSchedule = (
+    zoneId: string,
+    data: { watering_schedule: string | null; next_watering: string | null; harvest_date: string | null }
+  ) => {
+    try {
+      localStorage.setItem(`zoneSchedule_${zoneId}`, JSON.stringify(data));
+    } catch {
+      // ignore storage errors
+    }
+  };
+
+  const readPersistedZoneSchedule = (
+    zoneId: string
+  ): { watering_schedule: string | null; next_watering: string | null; harvest_date: string | null } | null => {
+    try {
+      const raw = localStorage.getItem(`zoneSchedule_${zoneId}`);
+      return raw ? (JSON.parse(raw) as { watering_schedule: string | null; next_watering: string | null; harvest_date: string | null }) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const mergeZoneWithPersistedSchedule = (zone: GardenZone): GardenZone => {
+    const persisted = readPersistedZoneSchedule(zone.id);
+    if (!persisted) return zone;
+    return {
+      ...zone,
+      watering_schedule: zone.watering_schedule ?? persisted.watering_schedule ?? null,
+      next_watering: zone.next_watering ?? persisted.next_watering ?? null,
+      harvest_date: zone.harvest_date ?? persisted.harvest_date ?? null,
+    };
+  };
+
   // Load garden zones from database and dismissed alerts from localStorage
   useEffect(() => {
     if (user) {
@@ -100,7 +134,7 @@ const FunctionalDashboard = () => {
       const zones = (data || []).map(zone => ({
         ...zone,
         status: zone.status as 'good' | 'needs_water' | 'critical'
-      }));
+      })).map((z) => mergeZoneWithPersistedSchedule(z as GardenZone));
       
       setGardenZones(zones);
       
@@ -205,7 +239,7 @@ const FunctionalDashboard = () => {
     // Fetch all zone_plants for user and join plant details
     const { data, error } = await supabase
       .from('zone_plants')
-      .select('id, user_id, zone_id, plant_id, schedule_text, next_watering, harvest_date, notifications_enabled, last_notified_at, created_at, updated_at, plant:plant_care_data(*)')
+      .select('id, user_id, zone_id, plant_id, schedule_text, next_watering, harvest_date, notifications_enabled, last_notified_at, created_at, updated_at, plant:plant_care_data!zone_plants_plant_id_fkey(*)')
       .eq('user_id', user.id);
     if (error) {
       console.error('Failed to fetch zone plants', error);
@@ -232,7 +266,7 @@ const FunctionalDashboard = () => {
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            const newZone = payload.new as GardenZone;
+            const newZone = mergeZoneWithPersistedSchedule(payload.new as GardenZone);
             setGardenZones(prev => [newZone, ...prev]);
             setNewZoneIds(prev => new Set([...prev, newZone.id]));
             
@@ -252,8 +286,9 @@ const FunctionalDashboard = () => {
               });
             }, 10000);
           } else if (payload.eventType === 'UPDATE') {
+            const updated = mergeZoneWithPersistedSchedule(payload.new as GardenZone);
             setGardenZones(prev => prev.map(zone => 
-              zone.id === payload.new.id ? payload.new as GardenZone : zone
+              zone.id === updated.id ? updated : zone
             ));
           } else if (payload.eventType === 'DELETE') {
             setGardenZones(prev => prev.filter(zone => zone.id !== payload.old.id));
@@ -579,6 +614,13 @@ const FunctionalDashboard = () => {
       // Save to localStorage
       if (user) {
         localStorage.setItem(`dismissedAlerts_${user.id}`, JSON.stringify([...updatedDismissed]));
+      }
+
+      // Remove any persisted schedule for this zone
+      try {
+        localStorage.removeItem(`zoneSchedule_${zoneId}`);
+      } catch {
+        // ignore
       }
     } catch (error: any) {
       toast({
@@ -1243,6 +1285,13 @@ const ZoneScheduleEditor = ({ zone, onZoneUpdated }: ZoneScheduleEditorProps) =>
     const harvestDateIso = toIsoMidnightUtc(harvestDateOnly);
 
     try {
+      // Persist locally first to ensure UI continuity even if DB schema lags
+      persistZoneSchedule(zone.id, {
+        watering_schedule: trimmedSchedule || null,
+        next_watering: nextWateringIso,
+        harvest_date: harvestDateIso,
+      });
+
       // Ensure UI reflects saved schedule immediately, even if DB columns lag
       const buildUpdatedZone = (serverZone?: Partial<GardenZone>): GardenZone => {
         return {
