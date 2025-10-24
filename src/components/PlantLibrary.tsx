@@ -177,13 +177,18 @@ const PlantLibrary = () => {
 
         if (updateError) throw updateError;
 
+        // Ensure plant exists in DB (fallback plants may not have a UUID id)
+        const careData = plants.find(p => p.id === plantId) as PlantCareData | undefined;
+        const dbPlantId = await ensurePlantExists(careData || { id: plantId } as PlantCareData);
+        if (!dbPlantId) throw new Error('Unable to save plant to database');
+
         // Link plant to this zone with per-plant schedule row
         const { error: linkError } = await supabase
           .from('zone_plants')
           .insert({
             user_id: user?.id!,
             zone_id: zoneId,
-            plant_id: plantId,
+            plant_id: dbPlantId,
             notifications_enabled: true,
           });
         if (linkError && !String(linkError.message || '').toLowerCase().includes('duplicate')) {
@@ -237,12 +242,16 @@ const PlantLibrary = () => {
 
           // Link plant to newly created zone
           if (targetZone?.id) {
+            const careData = plants.find(p => p.id === plantId) as PlantCareData | undefined;
+            const dbPlantId = await ensurePlantExists(careData || { id: plantId } as PlantCareData);
+            if (!dbPlantId) throw new Error('Unable to save plant to database');
+
             const { error: linkError } = await supabase
               .from('zone_plants')
               .insert({
                 user_id: user?.id!,
                 zone_id: targetZone.id,
-                plant_id: plantId,
+                plant_id: dbPlantId,
                 notifications_enabled: true,
               });
             if (linkError && !String(linkError.message || '').toLowerCase().includes('duplicate')) {
@@ -262,12 +271,16 @@ const PlantLibrary = () => {
           if (updateError) throw updateError;
           
           // Link plant to selected zone
+          const careData = plants.find(p => p.id === plantId) as PlantCareData | undefined;
+          const dbPlantId = await ensurePlantExists(careData || { id: plantId } as PlantCareData);
+          if (!dbPlantId) throw new Error('Unable to save plant to database');
+
           const { error: linkError } = await supabase
             .from('zone_plants')
             .insert({
               user_id: user?.id!,
               zone_id: targetZone.id,
-              plant_id: plantId,
+              plant_id: dbPlantId,
               notifications_enabled: true,
             });
           if (linkError && !String(linkError.message || '').toLowerCase().includes('duplicate')) {
@@ -290,6 +303,46 @@ const PlantLibrary = () => {
         title: "Error adding plant",
         description: "Failed to add plant to garden zone. Please try again."
       });
+    }
+  };
+
+  // Ensure the plant exists in DB; create if necessary (for fallback-only items)
+  const ensurePlantExists = async (careData: PlantCareData): Promise<string | null> => {
+    const uuidV4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (careData.id && uuidV4Regex.test(careData.id)) {
+      return careData.id;
+    }
+    try {
+      if (!careData.plant_name) return null;
+      const { data: existing, error: findError } = await supabase
+        .from('plant_care_data')
+        .select('id')
+        .eq('plant_name', careData.plant_name)
+        .maybeSingle();
+      if (!findError && existing?.id) return existing.id as string;
+
+      const { data: inserted, error: insertError } = await supabase
+        .from('plant_care_data')
+        .insert({
+          plant_name: careData.plant_name,
+          scientific_name: careData.scientific_name ?? null,
+          care_difficulty: careData.care_difficulty ?? null,
+          watering_frequency: careData.watering_frequency ?? null,
+          light_requirements: careData.light_requirements ?? null,
+          temperature_range: careData.temperature_range ?? null,
+          humidity_range: careData.humidity_range ?? null,
+          soil_type: careData.soil_type ?? null,
+          growth_rate: careData.growth_rate ?? null,
+          max_height: careData.max_height ?? null,
+          care_tips: careData.care_tips ?? null,
+          common_issues: careData.common_issues ?? null,
+        })
+        .select('id')
+        .single();
+      if (insertError) return null;
+      return inserted?.id as string;
+    } catch {
+      return null;
     }
   };
 
