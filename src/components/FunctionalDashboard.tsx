@@ -766,7 +766,7 @@ const FunctionalDashboard = () => {
                         toast({ title: 'Renamed', description: 'Zone name updated' });
                       }} />
           <p className="text-sm text-muted-foreground">
-            {(zonePlants[zone.id]?.length ?? 0)} plants • Last watered {zone.last_watered ? getTimeAgo(new Date(zone.last_watered)) : 'Recently'}
+            {zone.plants_count ?? 0} plants • Last watered {zone.last_watered ? getTimeAgo(new Date(zone.last_watered)) : 'Recently'}
           </p>
                       <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
                         <span>Schedule: {zone.watering_schedule || '—'}</span>
@@ -827,7 +827,7 @@ const FunctionalDashboard = () => {
                       <Leaf className="h-4 w-4 text-primary" />
                       <h4 className="text-sm font-medium text-foreground">Plants in {zone.name}</h4>
                       <Badge variant="secondary" className="text-xs">
-                        {zonePlants[zone.id]?.length || 0}
+                        {zone.plants_count ?? 0}
                       </Badge>
                     </div>
                     {(zonePlants[zone.id] && zonePlants[zone.id].length > 0) ? (
@@ -853,7 +853,11 @@ const FunctionalDashboard = () => {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-muted-foreground">No plants linked to this zone yet.</p>
+                      <p className="text-xs text-muted-foreground">
+                        {(zone.plants_count ?? 0) > 0
+                          ? 'Plants are recorded for this zone. Details will appear once synced.'
+                          : 'No plants linked to this zone yet.'}
+                      </p>
                     )}
                   </div>
 
