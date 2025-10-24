@@ -38,6 +38,48 @@ interface Alert {
   active: boolean;
 }
 
+// ---- Local persistence for zone schedules to prevent disappearing values ----
+const persistZoneSchedule = (
+  zoneId: string,
+  data: { watering_schedule: string | null; next_watering: string | null; harvest_date: string | null }
+) => {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(`zoneSchedule_${zoneId}`, JSON.stringify(data));
+  } catch {
+    // ignore storage errors
+  }
+};
+
+const readPersistedZoneSchedule = (
+  zoneId: string
+): { watering_schedule: string | null; next_watering: string | null; harvest_date: string | null } | null => {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem(`zoneSchedule_${zoneId}`);
+    return raw
+      ? (JSON.parse(raw) as {
+          watering_schedule: string | null;
+          next_watering: string | null;
+          harvest_date: string | null;
+        })
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const mergeZoneWithPersistedSchedule = (zone: GardenZone): GardenZone => {
+  const persisted = readPersistedZoneSchedule(zone.id);
+  if (!persisted) return zone;
+  return {
+    ...zone,
+    watering_schedule: zone.watering_schedule ?? persisted.watering_schedule ?? null,
+    next_watering: zone.next_watering ?? persisted.next_watering ?? null,
+    harvest_date: zone.harvest_date ?? persisted.harvest_date ?? null,
+  };
+};
+
 const FunctionalDashboard = () => {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -50,40 +92,6 @@ const FunctionalDashboard = () => {
   const [newZoneIds, setNewZoneIds] = useState<Set<string>>(new Set());
   const [zoneRecommendations, setZoneRecommendations] = useState<{[key: string]: any[]}>({});
   const [zonePlants, setZonePlants] = useState<Record<string, ZonePlantRow[]>>({});
-
-  // ---- Local persistence for zone schedules to prevent disappearing values ----
-  const persistZoneSchedule = (
-    zoneId: string,
-    data: { watering_schedule: string | null; next_watering: string | null; harvest_date: string | null }
-  ) => {
-    try {
-      localStorage.setItem(`zoneSchedule_${zoneId}`, JSON.stringify(data));
-    } catch {
-      // ignore storage errors
-    }
-  };
-
-  const readPersistedZoneSchedule = (
-    zoneId: string
-  ): { watering_schedule: string | null; next_watering: string | null; harvest_date: string | null } | null => {
-    try {
-      const raw = localStorage.getItem(`zoneSchedule_${zoneId}`);
-      return raw ? (JSON.parse(raw) as { watering_schedule: string | null; next_watering: string | null; harvest_date: string | null }) : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const mergeZoneWithPersistedSchedule = (zone: GardenZone): GardenZone => {
-    const persisted = readPersistedZoneSchedule(zone.id);
-    if (!persisted) return zone;
-    return {
-      ...zone,
-      watering_schedule: zone.watering_schedule ?? persisted.watering_schedule ?? null,
-      next_watering: zone.next_watering ?? persisted.next_watering ?? null,
-      harvest_date: zone.harvest_date ?? persisted.harvest_date ?? null,
-    };
-  };
 
   // Load garden zones from database and dismissed alerts from localStorage
   useEffect(() => {
