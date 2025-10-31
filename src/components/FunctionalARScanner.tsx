@@ -12,7 +12,11 @@ import { useClimateData } from "@/hooks/useClimateData";
 import { useARSpaceScanning } from "@/hooks/useARSpaceScanning";
 import { PlantDetailsModal } from "@/components/PlantDetailsModal";
 import { supabase } from "@/integrations/supabase/client";
+import { usePlantRecognition } from "@/hooks/usePlantRecognition";
 import type { PlantCareData } from "@/hooks/usePlantCare";
+import ARSpaceScannerWebXR from "@/components/ARSpaceScannerWebXR";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useNativeAR } from "@/hooks/useNativeAR";
 
 const FunctionalARScanner = () => {
   const [cameraActive, setCameraActive] = useState(false);
@@ -27,6 +31,7 @@ const FunctionalARScanner = () => {
   const [showPlantDisplay, setShowPlantDisplay] = useState(false);
   const [showZoneDisplay, setShowZoneDisplay] = useState(false);
   const [isAutoSyncing, setIsAutoSyncing] = useState(false);
+  const [measuredAreaSqM, setMeasuredAreaSqM] = useState<number | null>(null);
   const allowedPlants = ['tomato','basil','lettuce','eggplant','pepper'];
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -42,6 +47,15 @@ const FunctionalARScanner = () => {
     getSuitabilityColor,
     getSpaceRecommendations 
   } = useARSpaceScanning();
+  const { identify, loading: plantIdLoading, predictions } = usePlantRecognition();
+  const { cameraGranted, ensureCameraPermission } = usePermissions();
+  const nativeAR = useNativeAR();
+
+  useEffect(() => {
+    if (scanMode === 'space' && nativeAR.result?.estimatedArea != null) {
+      setMeasuredAreaSqM(nativeAR.result.estimatedArea);
+    }
+  }, [scanMode, nativeAR.result]);
 
   // Get current environmental data
   const currentSensorData = climateData ? {
@@ -76,6 +90,11 @@ const FunctionalARScanner = () => {
 
   const startCamera = async () => {
     try {
+      const ok = await ensureCameraPermission();
+      if (!ok) {
+        toast({ variant: "destructive", title: "Camera permission denied" });
+        return;
+      }
       if (Capacitor.isNativePlatform()) {
         // Use Capacitor Camera for native platforms
         const image = await CapCamera.getPhoto({
@@ -86,7 +105,11 @@ const FunctionalARScanner = () => {
         });
         
         setCapturedImage(image.dataUrl || null);
-        simulateAIScan();
+        if (image.dataUrl) {
+          await runPlantIdentification(image.dataUrl);
+        } else {
+          simulateAIScan();
+        }
       } else {
         // Use web camera for browser
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -113,7 +136,11 @@ const FunctionalARScanner = () => {
         title: "Camera Error",
         description: "Unable to access camera. Using simulation mode."
       });
-      simulateAIScan();
+      if (scanMode === 'plant' && capturedImage) {
+        await runPlantIdentification(capturedImage);
+      } else {
+        simulateAIScan();
+      }
     }
   };
 
@@ -135,8 +162,32 @@ const FunctionalARScanner = () => {
       const dataUrl = canvas.toDataURL('image/jpeg');
       setCapturedImage(dataUrl);
       stopCamera();
-      simulateAIScan();
+      runPlantIdentification(dataUrl);
     }
+  };
+
+  const runPlantIdentification = async (dataUrl?: string) => {
+    setIsScanning(true);
+    try {
+      const img = dataUrl || capturedImage;
+      if (!img) {
+        setIsScanning(false);
+        return;
+      }
+      const preds = await identify(img);
+      const top = preds && preds.length > 0 ? preds[0] : null;
+      const detected = top && top.probability >= 0.5 ? top.name : null;
+      if (!detected) {
+        setIsScanning(false);
+        return;
+      }
+      setDetectedPlant(detected);
+      setShowPlantDisplay(true);
+      // Continue with existing save/recommend flow below by reusing code path
+    } catch (e) {
+      // If API fails, fall back to previous simulation path
+    }
+    setIsScanning(false);
   };
 
   const simulateAIScan = async () => {
@@ -152,7 +203,8 @@ const FunctionalARScanner = () => {
             const { data: authUser } = await supabase.auth.getUser();
             if (authUser.user) {
               // Generate zone name based on surface type and location
-              const zoneName = `${spaceData.surfaceType.charAt(0).toUpperCase() + spaceData.surfaceType.slice(1)} Zone`;
+              const areaSuffix = measuredAreaSqM != null ? ` (~${measuredAreaSqM.toFixed(2)} m²)` : '';
+              const zoneName = `${spaceData.surfaceType.charAt(0).toUpperCase() + spaceData.surfaceType.slice(1)} Zone${areaSuffix}`;
               
               const { error: zoneError } = await supabase
                 .from('garden_zones')
@@ -198,8 +250,11 @@ const FunctionalARScanner = () => {
       setIsScanning(false);
       
       // Simulate plant detection
-      const possiblePlants = ['Tomato', 'Basil', 'Lettuce', 'Eggplant', 'Pepper'];
-      const detected = possiblePlants[Math.floor(Math.random() * possiblePlants.length)];
+      let detected = detectedPlant || null as string | null;
+      if (!detected) {
+        const possiblePlants = ['Tomato', 'Basil', 'Lettuce', 'Eggplant', 'Pepper'];
+        detected = possiblePlants[Math.floor(Math.random() * possiblePlants.length)];
+      }
       setDetectedPlant(detected);
       setShowPlantDisplay(true); // Automatically show plant display
       
@@ -427,9 +482,38 @@ const FunctionalARScanner = () => {
         </div>
       </div>
 
-      {/* Camera/Image View */}
+      {/* Camera/Image / WebXR View */}
       <div className="relative h-96 mx-4 mt-4 rounded-xl overflow-hidden bg-muted/30" role="region" aria-label="Camera view">
-        {cameraActive ? (
+        {scanMode === 'space' ? (
+          <div className="w-full h-full">
+            {/* Prefer WebXR; if unsupported and native AR plugin exists, fall back */}
+            {typeof navigator !== 'undefined' && (navigator as any).xr ? (
+              <ARSpaceScannerWebXR
+                autoStart
+                onResult={(area) => setMeasuredAreaSqM(area)}
+              />
+            ) : nativeAR.available ? (
+              <div className="relative w-full h-full flex items-center justify-center">
+                {!nativeAR.active ? (
+                  <Button onClick={() => nativeAR.start()}>Start Native AR</Button>
+                ) : (
+                  <Button variant="secondary" onClick={() => nativeAR.stop()}>Stop Native AR</Button>
+                )}
+                {nativeAR.result && (
+                  <div className="absolute top-3 left-3">
+                    <Badge>~{nativeAR.result.estimatedArea.toFixed(2)} m²</Badge>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="text-center text-sm text-muted-foreground px-4">
+                  WebXR not supported on this device/browser. Use a WebXR-capable browser on Android, or install a native AR plugin for Capacitor.
+                </div>
+              </div>
+            )}
+          </div>
+        ) : cameraActive ? (
           <video
             ref={videoRef}
             className="w-full h-full object-cover"
@@ -449,8 +533,13 @@ const FunctionalARScanner = () => {
         )}
 
         {/* AR Overlay */}
-        {(cameraActive || capturedImage) && (
+        {(cameraActive || capturedImage || scanMode === 'space') && (
           <div className="absolute inset-0" aria-hidden>
+            {scanMode === 'space' && measuredAreaSqM != null && (
+              <div className="absolute top-4 left-4">
+                <Badge>~{measuredAreaSqM.toFixed(2)} m²</Badge>
+              </div>
+            )}
             {/* Scanning Grid */}
             {(isScanning || spaceScanning) && (
               <div className="absolute inset-4 border-2 border-ar-green/50 rounded-lg" aria-live="polite">
