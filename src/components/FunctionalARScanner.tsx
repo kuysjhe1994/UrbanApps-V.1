@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePlantRecognition } from "@/hooks/usePlantRecognition";
 import type { PlantCareData } from "@/hooks/usePlantCare";
 import ARSpaceScannerWebXR from "@/components/ARSpaceScannerWebXR";
+import CameraSpaceScanner from "@/components/CameraSpaceScanner";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useNativeAR } from "@/hooks/useNativeAR";
 
@@ -486,31 +487,20 @@ const FunctionalARScanner = () => {
       <div className="relative h-96 mx-4 mt-4 rounded-xl overflow-hidden bg-muted/30" role="region" aria-label="Camera view">
         {scanMode === 'space' ? (
           <div className="w-full h-full">
-            {/* Prefer WebXR; if unsupported and native AR plugin exists, fall back */}
+            {/* Prefer WebXR; fall back to camera-based tracking if not supported */}
             {typeof navigator !== 'undefined' && (navigator as any).xr ? (
               <ARSpaceScannerWebXR
                 autoStart
                 onResult={(area) => setMeasuredAreaSqM(area)}
               />
-            ) : nativeAR.available ? (
-              <div className="relative w-full h-full flex items-center justify-center">
-                {!nativeAR.active ? (
-                  <Button onClick={() => nativeAR.start()}>Start Native AR</Button>
-                ) : (
-                  <Button variant="secondary" onClick={() => nativeAR.stop()}>Stop Native AR</Button>
-                )}
-                {nativeAR.result && (
-                  <div className="absolute top-3 left-3">
-                    <Badge>~{nativeAR.result.estimatedArea.toFixed(2)} m²</Badge>
-                  </div>
-                )}
-              </div>
+            ) : Capacitor.isNativePlatform() ? (
+              <CameraSpaceScanner
+                onResult={(area) => setMeasuredAreaSqM(area)}
+              />
             ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <div className="text-center text-sm text-muted-foreground px-4">
-                  WebXR not supported on this device/browser. Use a WebXR-capable browser on Android, or install a native AR plugin for Capacitor.
-                </div>
-              </div>
+              <CameraSpaceScanner
+                onResult={(area) => setMeasuredAreaSqM(area)}
+              />
             )}
           </div>
         ) : cameraActive ? (

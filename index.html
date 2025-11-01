@@ -14,6 +14,15 @@
 
   <body>
     <div id="root"></div>
+    <!-- WebXR Polyfill for Android WebView -->
+    <script src="https://cdn.jsdelivr.net/npm/webxr-polyfill@2.0.3/build/webxr-polyfill.min.js"></script>
+    <script>
+      // Initialize WebXR Polyfill for devices without native support
+      if (!navigator.xr) {
+        const polyfill = new WebXRPolyfill({ allowedDevices: 'any' });
+        console.log('WebXR Polyfill loaded for device support');
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -26,11 +26,36 @@ export const useWebXRSpace = () => {
 
   useEffect(() => {
     let mounted = true;
+    
+    // Check for WebXR support
     if (navigator.xr && navigator.xr.isSessionSupported) {
       navigator.xr.isSessionSupported("immersive-ar").then((ok) => {
         if (mounted) setSupported(ok);
+        // If WebXR is not supported, try to enable fallback mode
+        if (mounted && !ok) {
+          console.log("WebXR not natively supported, trying polyfill...");
+          // Give polyfill time to load and re-check
+          setTimeout(() => {
+            if ((window as any).WebXRPolyfill) {
+              console.log("WebXR Polyfill detected");
+            }
+          }, 1000);
+        }
       }).catch(() => setSupported(false));
+    } else {
+      // Check for polyfill
+      const checkPolyfill = () => {
+        if ((window as any).navigator && (window as any).navigator.xr) {
+          console.log("WebXR available via polyfill");
+          if (mounted) setSupported(true);
+        }
+      };
+      // Check immediately and after delay
+      checkPolyfill();
+      setTimeout(checkPolyfill, 1000);
+      setTimeout(checkPolyfill, 2000);
     }
+    
     return () => { mounted = false; };
   }, []);
 
