@@ -12,6 +12,9 @@
     },
     "Geolocation": {
       "permissions": ["location"]
+    },
+    "ARCamera": {
+      "permissions": ["camera"]
     }
   }
 }
