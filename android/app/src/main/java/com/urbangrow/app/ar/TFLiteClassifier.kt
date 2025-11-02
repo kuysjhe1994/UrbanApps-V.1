@@ -15,7 +15,7 @@ class TFLiteClassifier(private val context: Context) {
     }
     
     private var interpreter: Interpreter? = null
-    private val labels: List<String>
+    private lateinit var labels: List<String>
     private var isModelLoaded = false
 
     init {
