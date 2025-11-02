@@ -17,6 +17,9 @@ import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 
 class ARActivity : Activity() {
+    companion object {
+        private const val TAG = "ARActivity"
+    }
     private var session: Session? = null
     private lateinit var surfaceView: SurfaceView
     private lateinit var classifier: TFLiteClassifier
@@ -64,6 +67,9 @@ class ARActivity : Activity() {
         session?.pause()
     }
 
+    private var lastDetectionTime = 0L
+    private val DETECTION_COOLDOWN = 2000L // Send results every 2 seconds max
+
     private suspend fun runARLoop() {
         while (job?.isActive == true) {
             val frame = session?.update() ?: continue
@@ -71,7 +77,7 @@ class ARActivity : Activity() {
             val planes = frame.getUpdatedTrackables(Plane::class.java)
             for (plane in planes) {
                 if (plane.trackingState == TrackingState.TRACKING) {
-                    Log.d("ARActivity", "Plane detected")
+                    Log.d(TAG, "Plane detected")
                 }
             }
 
@@ -79,14 +85,21 @@ class ARActivity : Activity() {
                 frame.acquireCameraImage().use { image ->
                     val bmp = imageToBitmap(image)
                     val (label, conf) = classifier.classify(bmp)
-                    if (conf > 0.75f) {
+                    
+                    // Lower threshold for fallback detection, higher for model
+                    val threshold = if (label != "background") 0.60f else 0.75f
+                    
+                    val now = System.currentTimeMillis()
+                    if (conf > threshold && (now - lastDetectionTime) > DETECTION_COOLDOWN && label != "background") {
+                        lastDetectionTime = now
                         sendResult(label, conf)
+                        Log.d(TAG, "Detected: $label with confidence ${(conf * 100).toInt()}%")
                     }
                 }
             } catch (e: NotYetAvailableException) {
-                // frame not ready
+                // frame not ready, continue
             } catch (e: Exception) {
-                Log.e("ARActivity", "Frame error", e)
+                Log.e(TAG, "Frame error", e)
             }
 
             delay(1000L)
@@ -117,7 +130,7 @@ class ARActivity : Activity() {
 
     private fun sendResult(label: String, conf: Float) {
         runOnUiThread {
-            Toast.makeText(this, "Detected: $label ($conf)", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Detected: $label (${(conf * 100).toInt()}%)", Toast.LENGTH_SHORT).show()
         }
 
         val plugin = getCapacitorBridge()
@@ -128,9 +141,15 @@ class ARActivity : Activity() {
         return try {
             ARPlugin.getInstance()
         } catch (e: Exception) {
-            Log.e("ARActivity", "Could not get ARPlugin instance", e)
+            Log.e(TAG, "Could not get ARPlugin instance", e)
             null
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        job?.cancel()
+        session?.close()
     }
 }
 

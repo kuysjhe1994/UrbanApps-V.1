@@ -18,6 +18,9 @@ export interface SpaceDetection {
     z: number;
     confidence: number;
   }>;
+  // Enhanced properties for AI recommendations
+  detectedSpaceType?: string;
+  optimalPlantCount?: number;
 }
 
 export const useARSpaceScanning = () => {

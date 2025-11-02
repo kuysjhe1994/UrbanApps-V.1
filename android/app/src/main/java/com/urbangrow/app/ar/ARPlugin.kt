@@ -43,7 +43,8 @@ class ARPlugin : Plugin() {
         }
         
         val intent = Intent(context, ARActivity::class.java)
-        activity?.startActivity(intent)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
         call.resolve()
     }
 

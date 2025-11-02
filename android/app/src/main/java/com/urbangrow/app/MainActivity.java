@@ -6,6 +6,7 @@ import android.os.Looper;
 import android.util.Log;
 import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
+import com.urbangrow.app.ar.ARPlugin;
 
 public class MainActivity extends BridgeActivity {
     
@@ -14,6 +15,9 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Register ARPlugin
+        registerPlugin(ARPlugin.class);
     }
     
     @Override

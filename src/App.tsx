@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import ARScreen from "./components/ARScreen";
 import { ThemeProvider } from "@/components/ThemeProvider";
 // Removed global SoilData import to restrict visibility to IoT screen only
 
@@ -29,6 +30,7 @@ const App = () => {
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
+              <Route path="/ar" element={<ARScreen />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

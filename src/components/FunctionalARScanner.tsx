@@ -17,7 +17,8 @@ import type { PlantCareData } from "@/hooks/usePlantCare";
 import ARSpaceScannerWebXR from "@/components/ARSpaceScannerWebXR";
 import CameraSpaceScanner from "@/components/CameraSpaceScanner";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useNativeAR } from "@/hooks/useNativeAR";
+import { useARPlugin } from "@/hooks/useARPlugin";
+import { aiRecommendationService } from "@/services/aiRecommendationService";
 
 const FunctionalARScanner = () => {
   const [cameraActive, setCameraActive] = useState(false);
@@ -38,7 +39,7 @@ const FunctionalARScanner = () => {
   const streamRef = useRef<MediaStream | null>(null);
   const { toast } = useToast();
   const { saveScan, scans } = useARScans();
-  const { getRecommendationsForConditions, getPlantByName, fetchPlants } = usePlantCare();
+  const { getRecommendationsForConditions, getPlantByName, fetchPlants, plants } = usePlantCare();
   const { climateData, loading: climateLoading, fetchClimateData } = useClimateData();
   const { 
     isScanning: spaceScanning, 
@@ -50,13 +51,19 @@ const FunctionalARScanner = () => {
   } = useARSpaceScanning();
   const { identify, loading: plantIdLoading, predictions } = usePlantRecognition();
   const { cameraGranted, ensureCameraPermission } = usePermissions();
-  const nativeAR = useNativeAR();
+  const arPlugin = useARPlugin();
 
   useEffect(() => {
-    if (scanMode === 'space' && nativeAR.result?.estimatedArea != null) {
-      setMeasuredAreaSqM(nativeAR.result.estimatedArea);
+    // Handle AR scan results
+    if (arPlugin.lastResult) {
+      console.log("AR Detection:", arPlugin.lastResult);
+      // Process detected plant label here
+      if (arPlugin.lastResult.label !== 'background') {
+        setDetectedPlant(arPlugin.lastResult.label);
+        setShowPlantDisplay(true);
+      }
     }
-  }, [scanMode, nativeAR.result]);
+  }, [arPlugin.lastResult]);
 
   // Get current environmental data
   const currentSensorData = climateData ? {
@@ -73,21 +80,46 @@ const FunctionalARScanner = () => {
 
   useEffect(() => {
     if (spaceData) {
-      const recsAll = getRecommendationsForConditions(currentSensorData);
-      let recsAllowed = recsAll.filter(r => allowedPlants.some(a => r.name.toLowerCase().includes(a)));
-      const count = Math.max(spaceData.recommendedPlants, 1);
-      if (recsAllowed.length === 0) {
-        const plantsFromLibrary = allowedPlants
-          .map(name => getPlantByName(name))
-          .filter((p): p is PlantCareData => Boolean(p));
-        setSpacePlantRecommendations(plantsFromLibrary.slice(0, count));
+      // Use AI recommendation service for space-based recommendations
+      const spaceAnalysis = {
+        area: spaceData.area,
+        surfaceType: spaceData.surfaceType,
+        lightAccess: spaceData.lightAccess,
+        suitability: spaceData.suitability,
+        recommendedPlants: spaceData.recommendedPlants
+      };
+      
+      const allPlants = plants.length > 0 ? plants : [];
+      const aiRecs = aiRecommendationService.getSpaceRecommendations(
+        spaceAnalysis,
+        currentSensorData,
+        allPlants
+      );
+      
+      if (aiRecs.length > 0) {
+        const recsWithCareData = aiRecs
+          .filter(r => r.careData)
+          .map(r => r.careData!)
+          .slice(0, spaceData.recommendedPlants || 5);
+        setSpacePlantRecommendations(recsWithCareData);
       } else {
-        setSpacePlantRecommendations(recsAllowed.slice(0, count).map(r => r.careData));
+        // Fallback to original method
+        const recsAll = getRecommendationsForConditions(currentSensorData);
+        let recsAllowed = recsAll.filter(r => allowedPlants.some(a => r.name.toLowerCase().includes(a)));
+        const count = Math.max(spaceData.recommendedPlants, 1);
+        if (recsAllowed.length === 0) {
+          const plantsFromLibrary = allowedPlants
+            .map(name => getPlantByName(name))
+            .filter((p): p is PlantCareData => Boolean(p));
+          setSpacePlantRecommendations(plantsFromLibrary.slice(0, count));
+        } else {
+          setSpacePlantRecommendations(recsAllowed.slice(0, count).map(r => r.careData));
+        }
       }
     } else {
       setSpacePlantRecommendations([]);
     }
-  }, [spaceData, climateData]);
+  }, [spaceData, climateData, plants]);
 
   const startCamera = async () => {
     try {
@@ -96,20 +128,48 @@ const FunctionalARScanner = () => {
         toast({ variant: "destructive", title: "Camera permission denied" });
         return;
       }
+      
+      // For native platforms: use real native AR for Plant Scan, fallback to camera for Space Scan
       if (Capacitor.isNativePlatform()) {
-        // Use Capacitor Camera for native platforms
-        const image = await CapCamera.getPhoto({
-          quality: 90,
-          allowEditing: false,
-          resultType: CameraResultType.DataUrl,
-          source: CameraSource.Camera
-        });
-        
-        setCapturedImage(image.dataUrl || null);
-        if (image.dataUrl) {
-          await runPlantIdentification(image.dataUrl);
+        if (scanMode === 'plant') {
+          // Launch native AR activity for Plant Scan
+          try {
+            await arPlugin.start();
+            toast({
+              title: "AR Active",
+              description: "Point your camera at plants to identify them"
+            });
+          } catch (error: any) {
+            console.error('Native AR failed:', error);
+            toast({
+              variant: "destructive",
+              title: "AR Failed",
+              description: error.message || "Unable to start AR. Falling back to camera."
+            });
+            // Fallback to camera
+            const image = await CapCamera.getPhoto({
+              quality: 90,
+              allowEditing: false,
+              resultType: CameraResultType.DataUrl,
+              source: CameraSource.Camera
+            });
+            setCapturedImage(image.dataUrl || null);
+            if (image.dataUrl) {
+              await runPlantIdentification(image.dataUrl);
+            }
+          }
         } else {
-          simulateAIScan();
+          // Space Scan: use camera-based scanner on native
+          const image = await CapCamera.getPhoto({
+            quality: 90,
+            allowEditing: false,
+            resultType: CameraResultType.DataUrl,
+            source: CameraSource.Camera
+          });
+          setCapturedImage(image.dataUrl || null);
+          if (image.dataUrl) {
+            simulateAIScan();
+          }
         }
       } else {
         // Use web camera for browser
@@ -362,22 +422,40 @@ const FunctionalARScanner = () => {
         setIsAutoSyncing(false);
       }
       
-      // Generate plant recommendations based on detected plant and conditions
-      const recsAll = getRecommendationsForConditions(currentSensorData);
-      const recommendations = recsAll.filter(r => allowedPlants.some(a => r.name.toLowerCase().includes(a)));
+      // Use AI recommendation service for plant-based recommendations
+      const allPlants = plants.length > 0 ? plants : [];
+      const aiRecs = aiRecommendationService.getPlantRecommendations(
+        detected,
+        currentSensorData,
+        allPlants
+      );
       
-      // If no recommendations from conditions, generate smart recommendations for the detected plant
-      if (recommendations.length === 0) {
-        const companionPlants = allowedPlants.filter(p => p !== detected.toLowerCase());
-        const smartRecommendations = companionPlants.slice(0, 5).map(plantName => ({
-          name: plantName.charAt(0).toUpperCase() + plantName.slice(1),
-          compatibility: 85 + Math.floor(Math.random() * 10), // 85-95%
-          reason: `Great companion plant for ${detected}`,
-          careData: getPlantByName(plantName)
+      if (aiRecs.length > 0) {
+        // Convert AI recommendations to format expected by UI
+        const recommendations = aiRecs.map(rec => ({
+          name: rec.name,
+          compatibility: rec.compatibility,
+          reason: rec.reason,
+          careData: rec.careData
         }));
-        setPlantRecommendations(smartRecommendations);
-      } else {
         setPlantRecommendations(recommendations);
+      } else {
+        // Fallback to original method
+        const recsAll = getRecommendationsForConditions(currentSensorData);
+        const recommendations = recsAll.filter(r => allowedPlants.some(a => r.name.toLowerCase().includes(a)));
+        
+        if (recommendations.length === 0) {
+          const companionPlants = allowedPlants.filter(p => p !== detected.toLowerCase());
+          const smartRecommendations = companionPlants.slice(0, 5).map(plantName => ({
+            name: plantName.charAt(0).toUpperCase() + plantName.slice(1),
+            compatibility: 85 + Math.floor(Math.random() * 10),
+            reason: `Great companion plant for ${detected}`,
+            careData: getPlantByName(plantName)
+          }));
+          setPlantRecommendations(smartRecommendations);
+        } else {
+          setPlantRecommendations(recommendations);
+        }
       }
       
       // Save scan data with real climate data
@@ -393,7 +471,7 @@ const FunctionalARScanner = () => {
           weather: climateData?.weather || 'Unknown',
           location: climateData?.location || { city: 'Unknown', country: 'Unknown' }
         },
-        recommendations: recommendations.map(r => `${r.name}: ${r.reason}`),
+        recommendations: plantRecommendations.map(r => `${r.name}: ${r.reason}`),
         location_data: climateData?.location.coordinates || { latitude: 0, longitude: 0 }
       });
       
@@ -487,14 +565,14 @@ const FunctionalARScanner = () => {
       <div className="relative h-96 mx-4 mt-4 rounded-xl overflow-hidden bg-muted/30" role="region" aria-label="Camera view">
         {scanMode === 'space' ? (
           <div className="w-full h-full">
-            {/* Prefer WebXR; fall back to camera-based tracking if not supported */}
-            {typeof navigator !== 'undefined' && (navigator as any).xr ? (
-              <ARSpaceScannerWebXR
-                autoStart
+            {/* Use WebXR on web, camera-based on native */}
+            {Capacitor.isNativePlatform() ? (
+              <CameraSpaceScanner
                 onResult={(area) => setMeasuredAreaSqM(area)}
               />
-            ) : Capacitor.isNativePlatform() ? (
-              <CameraSpaceScanner
+            ) : typeof navigator !== 'undefined' && (navigator as any).xr ? (
+              <ARSpaceScannerWebXR
+                autoStart
                 onResult={(area) => setMeasuredAreaSqM(area)}
               />
             ) : (
@@ -502,6 +580,22 @@ const FunctionalARScanner = () => {
                 onResult={(area) => setMeasuredAreaSqM(area)}
               />
             )}
+          </div>
+        ) : Capacitor.isNativePlatform() && scanMode === 'plant' && arPlugin.active ? (
+          <div className="w-full h-full flex items-center justify-center bg-black">
+            <div className="text-center text-white">
+              <Camera className="h-16 w-16 text-white mx-auto mb-4 opacity-50" />
+              <p className="text-white">Native AR Active</p>
+              <p className="text-sm text-white/70 mt-2">Point your camera at plants</p>
+              {arPlugin.lastResult && (
+                <div className="mt-4 p-3 bg-white/10 rounded-lg backdrop-blur-sm">
+                  <p className="font-semibold">{arPlugin.lastResult.label}</p>
+                  <p className="text-xs opacity-80">
+                    {(arPlugin.lastResult.confidence * 100).toFixed(1)}% confidence
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         ) : cameraActive ? (
           <video
@@ -517,7 +611,16 @@ const FunctionalARScanner = () => {
           <div className="w-full h-full flex items-center justify-center bg-muted/50">
             <div className="text-center">
               <Camera className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Tap to start AR scanning</p>
+              <p className="text-muted-foreground">
+                {Capacitor.isNativePlatform() && scanMode === 'plant' 
+                  ? 'Tap to start native AR scanning' 
+                  : 'Tap to start AR scanning'}
+              </p>
+              {Capacitor.isNativePlatform() && scanMode === 'plant' && (
+                <p className="text-xs text-muted-foreground/70 mt-2">
+                  Uses ARCore for real-time plant detection
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -752,16 +855,29 @@ const FunctionalARScanner = () => {
               </div>
 
               <div className="mb-3">
-                <p className="text-xs font-medium text-card-foreground">Suggested plants:</p>
+                <p className="text-xs font-medium text-card-foreground">AI-Recommended Plants:</p>
                 <div className="mt-1 flex flex-wrap gap-2">
                   {spacePlantRecommendations.length > 0 ? (
                     spacePlantRecommendations.map((p) => (
-                      <Badge key={p.id} variant="secondary">{p.plant_name}</Badge>
+                      <Badge key={p.id} variant="secondary" className="text-xs">
+                        {p.plant_name}
+                        {p.care_difficulty && (
+                          <span className="ml-1 text-[10px] opacity-70">
+                            ({p.care_difficulty.toLowerCase()})
+                          </span>
+                        )}
+                      </Badge>
                     ))
                   ) : (
-                    <p className="text-xs text-muted-foreground">Tomato, Basil, Lettuce, Eggplant, Pepper</p>
+                    <p className="text-xs text-muted-foreground">Analyzing best plants for your space...</p>
                   )}
                 </div>
+                {spaceData && (
+                  <p className="text-[10px] text-muted-foreground mt-2">
+                    Space Type: {spaceData.surfaceType} • Light: {spaceData.lightAccess} • 
+                    Suitability: {spaceData.suitability}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -820,7 +936,7 @@ const FunctionalARScanner = () => {
 
       {/* Camera Controls */}
       <div className="fixed bottom-24 left-4 right-4 flex items-center justify-center gap-4">
-        {!cameraActive && !capturedImage && (
+        {!cameraActive && !capturedImage && !(Capacitor.isNativePlatform() && scanMode === 'plant' && arPlugin.active) && (
           <Button 
             onClick={startCamera}
             size="lg" 
@@ -828,6 +944,20 @@ const FunctionalARScanner = () => {
             disabled={isScanning || spaceScanning}
           >
             {scanMode === 'space' ? <Maximize className="h-6 w-6" /> : <Camera className="h-6 w-6" />}
+          </Button>
+        )}
+        
+        {Capacitor.isNativePlatform() && scanMode === 'plant' && arPlugin.active && (
+          <Button 
+            onClick={async () => {
+              await arPlugin.stop();
+              resetScanner();
+            }}
+            size="lg" 
+            variant="destructive"
+            className="h-16 w-16 rounded-full shadow-ar-glow"
+          >
+            <X className="h-6 w-6" />
           </Button>
         )}
         
