@@ -1,0 +1,6 @@
+background
+plant
+soil
+space
+tree
+leaf
